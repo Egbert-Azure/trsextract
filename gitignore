@@ -1,0 +1,15 @@
+# macOS
+.DS_Store
+
+# Swift / app build artifacts
+build/
+*.app/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Editor / misc
+*.swp
+*~

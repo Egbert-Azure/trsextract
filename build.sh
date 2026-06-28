@@ -1,10 +1,10 @@
 #!/bin/bash
 # build.sh - build TRS80Extract.app (SwiftUI wrapper for trsextract.py)
 #
-# Mirrors the TRS80Launcher build approach: swiftc with -parse-as-library
-# (required because main.swift uses the @main attribute), then assemble a
-# minimal .app bundle and copy trsextract.py into Resources so the app can
-# find it at runtime.
+# Flat repo layout: trsextract.py, build.sh, Info.plist and Sources/ all live
+# at the repository root. Uses swiftc with -parse-as-library (required because
+# main.swift uses the @main attribute), then assembles a minimal .app bundle
+# and copies trsextract.py into Resources so the app finds it at runtime.
 #
 # Usage:
 #   ./build.sh                 # build using ./trsextract.py
@@ -16,16 +16,17 @@ APP_NAME="TRS80Extract"
 BUNDLE="${APP_NAME}.app"
 SRC="Sources/main.swift"
 
-# Where is the Python tool? Argument 1, or the repo-root ../trsextract.py
-# (one level up from this TRS80Extract/ folder). A single canonical copy lives
-# at the repo root; this wrapper does not keep its own duplicate.
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PYTOOL="${1:-${SCRIPT_DIR}/../trsextract.py}"
+PYTOOL="${1:-${SCRIPT_DIR}/trsextract.py}"
+PLIST="${SCRIPT_DIR}/Info.plist"
 
 if [[ ! -f "$PYTOOL" ]]; then
     echo "ERROR: trsextract.py not found at: $PYTOOL"
-    echo "Pass its path as the first argument, e.g.:"
-    echo "   ./build.sh ../TRS80M1/diskimages/NewDos/trsextract.py"
+    echo "Pass its path as the first argument if it lives elsewhere."
+    exit 1
+fi
+if [[ ! -f "$PLIST" ]]; then
+    echo "ERROR: Info.plist not found next to build.sh."
     exit 1
 fi
 
@@ -43,27 +44,8 @@ mkdir -p "${BUNDLE}/Contents/MacOS"
 mkdir -p "${BUNDLE}/Contents/Resources"
 
 cp "build/${APP_NAME}" "${BUNDLE}/Contents/MacOS/${APP_NAME}"
-cp "$PYTOOL"          "${BUNDLE}/Contents/Resources/trsextract.py"
-
-# 3. Info.plist
-cat > "${BUNDLE}/Contents/Info.plist" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
- "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>CFBundleName</key>            <string>${APP_NAME}</string>
-  <key>CFBundleDisplayName</key>     <string>TRS-80 Disk Extract</string>
-  <key>CFBundleIdentifier</key>      <string>de.schroeer.trs80extract</string>
-  <key>CFBundleVersion</key>         <string>1.1</string>
-  <key>CFBundleShortVersionString</key><string>1.1</string>
-  <key>CFBundlePackageType</key>     <string>APPL</string>
-  <key>CFBundleExecutable</key>      <string>${APP_NAME}</string>
-  <key>LSMinimumSystemVersion</key>  <string>12.0</string>
-  <key>NSHighResolutionCapable</key> <true/>
-</dict>
-</plist>
-PLIST
+cp "$PYTOOL"           "${BUNDLE}/Contents/Resources/trsextract.py"
+cp "$PLIST"            "${BUNDLE}/Contents/Info.plist"
 
 echo "Done: ${BUNDLE}"
 echo "Run with:  open ${BUNDLE}"

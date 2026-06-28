@@ -19,6 +19,18 @@ tool a native drag-and-drop macOS interface (see the end of this README).
 
 ---
 
+## Screenshots
+
+The optional SwiftUI wrapper — drop a disk image, browse its directory, and
+extract every file with one click.
+
+![Drop a disk image to begin](screenshots/dropzone.png)
+
+![Directory listing with extract](screenshots/listing.png)
+
+![where it lands](screenshots/export.png)
+---
+
 ## What it does
 
 - **Lists** the directory of a NEWDOS/80 or G-DOS disk image: filenames,

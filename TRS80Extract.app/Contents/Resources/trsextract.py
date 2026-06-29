@@ -35,6 +35,12 @@ Usage:
     python3 trsextract.py disk.dmk -o outdir/ --detokenize
     python3 trsextract.py disk.dmk --track N       # force directory track
     python3 trsextract.py disk.dmk -v              # verbose diagnostics
+    python3 trsextract.py disk.dmk --write-basic prog.bas --as NAME/BAS -o out.dsk
+                                                   # tokenize prog.bas and write
+                                                   # it into a COPY of the image
+    python3 trsextract.py disk.dmk --write-file foo.cmd --as FOO/CMD -o out.dsk
+                                                   # write ANY host file verbatim
+                                                   # (multi-lump ok) into a COPY
     python3 trsextract.py --version
 
 This is a from-spec implementation. VERIFY its output against an
@@ -43,6 +49,47 @@ authoritative source before trusting it on new disks.
 -----------------------------------------------------------------------------
 VERSION HISTORY
 -----------------------------------------------------------------------------
+1.3  (2026-06-28)  Multi-EXTENT write, validated at scale on real NEWDOS.
+       - A contiguous granule run longer than 32 granules is now encoded as up
+         to four extent pairs (each extent's granule count is a 5-bit field,
+         max 32). The allocation is still a single contiguous run; only its
+         description in the directory entry is split. Files needing more than
+         four extents are rejected (would require FXDE continuation entries).
+       - Validated end-to-end in sdltrs: ALIEN/Z80, 99673 bytes (390 sectors /
+         78 granules), written from the host as a 3-extent file, appears in
+         NEWDOS DIR on a real boot. Confirms multi-extent encoding + GAT
+         marking across the whole run, not just the single-extent case.
+       - Corrects the 1.2 note: write handles up to four extents, not "one
+         extent of <= 32 granules".
+
+1.2  (2026-06-28)  WRITE SUPPORT (NEWDOS/80 DSDD), validated against real DOS.
+       - NEW --write-basic SRC.bas [--as NAME/EXT]: tokenizes an ASCII BASIC
+         source and writes it into a COPY of a NEWDOS/80 DSDD image. Verified
+         end-to-end in sdltrs - the written file LOADs, LISTs and RUNs.
+       - NEW --write-file SRC [--as NAME/EXT]: writes ANY host file verbatim
+         (/CMD, /TXT, data, source). EOF encoding validated against SARGON/CMD
+         (9032 bytes -> eof_byte 0x48, rel-sector 36, exact).
+       - MULTI-LUMP allocation: files larger than one lump are placed in a
+         contiguous run of free granules and described by a single extent that
+         spans lumps (granules are numbered continuously across the disk, as
+         NEWDOS does). GAT bits are marked across every spanned lump. Validated
+         end-to-end: SARGON0/CMD (9032 bytes, 8 granules across lumps) written
+         to a blank disk LOADs and RUNs in sdltrs. v1 still requires a single
+         CONTIGUOUS free run (no fragmented multi-extent / FXDE yet) and one
+         extent of <= 32 granules.
+       - Built from Klaus Kaempf's newdos.rb (authoritative) + NEWDOS/TRSDOS
+         directory spec. Key facts:
+           * Directory Entry Code: dec = (rrr<<5)+sssss; the HIT byte sits at
+             offset == DEC (not a linear slot index).
+           * Entry: byte3=EOF-byte, 20-21=EOF rel-sector, 16-19=upd/acc hash,
+             22+=extent pairs (lump, (startgran<<5)|(ngran-1)), 0xFF ends.
+           * newdos_hashcode() (XOR-rotate over 11-byte name+ext) matches DOS.
+           * DMK data CRC = CRC-16-CCITT preset 0xFFFF over A1 A1 A1 + DAM +
+             data; validated against 2880 NEWDOS-written sectors.
+       - v1 scope: append into free space, on a copy, single-lump files
+         (<= 30 sectors). No overwrite / delete / defragment / multi-lump.
+       - Read/list/extract unchanged (no regression).
+
 1.1  (2026-06-27)  FULL geometry auto-detection incl. G-DOS / single-density.
        - Generalized the sector model to all tested geometries. The flat
          granule model is:
@@ -241,7 +288,7 @@ KNOWN ISSUES / TODO
 -----------------------------------------------------------------------------
 """
 
-__version__ = "1.1"
+__version__ = "1.3"
 
 import argparse
 import os
@@ -817,6 +864,356 @@ def list_directory(img, entries, dirtrack, dirside=0):
     print(f"\n{len(entries)} entries.")
 
 
+
+# ===========================================================================
+# WRITE SUPPORT (NEWDOS/80 DSDD) - v1.2
+# ---------------------------------------------------------------------------
+# Validated end-to-end against real NEWDOS/80 in the sdltrs emulator: a
+# tokenized BASIC file written by this code LOADs, LISTs and RUNs correctly.
+# Built from Klaus Kaempf's newdos.rb (authoritative) and the TRSDOS/NEWDOS
+# directory specification:
+#   - Directory Entry Code (DEC): dec = (rrr<<5)+sssss, where sssss selects
+#     the entry sector (entries start 2 sectors after the GAT) and rrr selects
+#     the 32-byte slot within that sector.
+#   - The HIT byte for a file lives at offset == DEC (NOT a linear slot index).
+#   - hashcode(): XOR-rotate over the 11-byte name+ext (Kaempf newdos.rb).
+#   - Entry layout: 0=type 1-2=date 3=eof_byte 4=lrl 5-12=name 13-15=ext
+#     16-19=update/access hash 20-21=eof relative-sector 22+=extent pairs.
+#   - Extent pair: (lump, (startgran<<5)|(ngran-1)), 0xFF terminates.
+# v1 scope: append a file into free space. Operates on a COPY. No overwrite,
+# delete, or defragment. DSDD NEWDOS/80 geometry (spt=18/side, gpl=6).
+# ===========================================================================
+
+def _crc16_ccitt(data, crc=0xFFFF):
+    for b in data:
+        crc ^= b << 8
+        for _ in range(8):
+            crc = ((crc << 1) ^ 0x1021) & 0xFFFF if (crc & 0x8000) else (crc << 1) & 0xFFFF
+    return crc
+
+def newdos_hashcode(name8, ext3):
+    """NEWDOS/80 directory HIT hash (Kaempf newdos.rb). name8+ext3 = 11 bytes."""
+    hc = 0
+    for a in (name8 + ext3):
+        a ^= hc
+        a = a * 2
+        if a > 255:
+            a -= 256; a += 1
+        hc = a
+    return hc
+
+# ---- BASIC tokenizer (TRS-80 Level II / Disk BASIC) -----------------------
+_BASIC_LOAD_BASE = 0x6A46
+_BASIC_TOKENS = {
+    "END":0x80,"FOR":0x81,"RESET":0x82,"SET":0x83,"CLS":0x84,"CMD":0x85,
+    "RANDOM":0x86,"NEXT":0x87,"DATA":0x88,"INPUT":0x89,"DIM":0x8A,"READ":0x8B,
+    "LET":0x8C,"GOTO":0x8D,"RUN":0x8E,"IF":0x8F,"RESTORE":0x90,"GOSUB":0x91,
+    "RETURN":0x92,"REM":0x93,"STOP":0x94,"ELSE":0x95,"TRON":0x96,"TROFF":0x97,
+    "DEFSTR":0x98,"DEFINT":0x99,"DEFSNG":0x9A,"DEFDBL":0x9B,"LINE":0x9C,
+    "EDIT":0x9D,"ERROR":0x9E,"RESUME":0x9F,"OUT":0xA0,"ON":0xA1,"OPEN":0xA2,
+    "FIELD":0xA3,"GET":0xA4,"PUT":0xA5,"CLOSE":0xA6,"LOAD":0xA7,"MERGE":0xA8,
+    "NAME":0xA9,"KILL":0xAA,"LSET":0xAB,"RSET":0xAC,"SAVE":0xAD,"SYSTEM":0xAE,
+    "LPRINT":0xAF,"DEF":0xB0,"POKE":0xB1,"PRINT":0xB2,"CONT":0xB3,"LIST":0xB4,
+    "LLIST":0xB5,"DELETE":0xB6,"AUTO":0xB7,"CLEAR":0xB8,"CLOAD":0xB9,
+    "CSAVE":0xBA,"NEW":0xBB,"TAB(":0xBC,"TO":0xBD,"FN":0xBE,"USING":0xBF,
+    "VARPTR":0xC0,"USR":0xC1,"ERL":0xC2,"ERR":0xC3,"STRING$":0xC4,
+    "INSTR":0xC5,"POINT":0xC6,"TIME$":0xC7,"MEM":0xC8,"INKEY$":0xC9,
+    "THEN":0xCA,"NOT":0xCB,"STEP":0xCC,"+":0xCD,"-":0xCE,"*":0xCF,"/":0xD0,
+    "[":0xD1,"AND":0xD2,"OR":0xD3,">":0xD4,"=":0xD5,"<":0xD6,"SGN":0xD7,
+    "INT":0xD8,"ABS":0xD9,"FRE":0xDA,"INP":0xDB,"POS":0xDC,"SQR":0xDD,
+    "RND":0xDE,"LOG":0xDF,"EXP":0xE0,"COS":0xE1,"SIN":0xE2,"TAN":0xE3,
+    "ATN":0xE4,"PEEK":0xE5,"CVI":0xE6,"CVS":0xE7,"CVD":0xE8,"EOF":0xE9,
+    "LOC":0xEA,"LOF":0xEB,"MKI$":0xEC,"MKS$":0xED,"MKD$":0xEE,"CINT":0xEF,
+    "CSNG":0xF0,"CDBL":0xF1,"FIX":0xF2,"LEN":0xF3,"STR$":0xF4,"VAL":0xF5,
+    "ASC":0xF6,"CHR$":0xF7,"LEFT$":0xF8,"RIGHT$":0xF9,"MID$":0xFA,
+}
+_BASIC_KW = sorted(_BASIC_TOKENS.keys(), key=len, reverse=True)
+
+def _tokenize_line(text):
+    out = bytearray(); i = 0; n = len(text)
+    while i < n:
+        c = text[i]
+        if c == '"':
+            out.append(0x22); i += 1
+            while i < n and text[i] != '"':
+                out.append(ord(text[i])); i += 1
+            if i < n:
+                out.append(0x22); i += 1
+            continue
+        up = text[i:].upper(); matched = None
+        for kw in _BASIC_KW:
+            if up.startswith(kw):
+                matched = kw; break
+        if matched:
+            out.append(_BASIC_TOKENS[matched]); i += len(matched)
+            if matched == "REM":
+                while i < n:
+                    out.append(ord(text[i])); i += 1
+            continue
+        out.append(ord(c)); i += 1
+    return bytes(out)
+
+def tokenize_basic(source_lines):
+    """source_lines: list of (lineno:int, text:str). Returns tokenized image
+    in NEWDOS BASIC SAVE format (FF marker ... 00 00 terminator)."""
+    body = bytearray(); body.append(0xFF)
+    cur = _BASIC_LOAD_BASE
+    for lineno, text in source_lines:
+        toks = _tokenize_line(text)
+        rec_len = 2 + 2 + len(toks) + 1
+        nextptr = cur + rec_len
+        body += nextptr.to_bytes(2, 'little')
+        body += lineno.to_bytes(2, 'little')
+        body += toks
+        body.append(0x00)
+        cur = nextptr
+    body += b'\x00\x00'
+    return bytes(body)
+
+def parse_basic_source(text):
+    """Parse plain BASIC text (one statement per line, leading line number)
+    into [(lineno, rest)]."""
+    out = []
+    for raw in text.replace('\r\n','\n').replace('\r','\n').split('\n'):
+        s = raw.rstrip()
+        if not s.strip():
+            continue
+        i = 0
+        while i < len(s) and s[i].isdigit():
+            i += 1
+        if i == 0:
+            raise ValueError(f"line without a line number: {s!r}")
+        lineno = int(s[:i])
+        rest = s[i:].lstrip()
+        out.append((lineno, rest))
+    return out
+
+
+class DMKWriteImage:
+    """Write-aware DMK accessor: keeps the raw bytes and each sector's data
+    offset so sectors can be overwritten with regenerated CRCs. Keyed by
+    PHYSICAL side (image position), not the recorded IDAM side byte."""
+    def __init__(self, path):
+        self.path = path
+        self.raw = bytearray(open(path, 'rb').read())
+        self.ntracks = self.raw[1]
+        self.track_len = struct.unpack_from('<H', self.raw, 2)[0]
+        self.sides = 1 if (self.raw[4] & 0x10) else 2
+        self.HEADER = 16
+        self.index = {}
+        for t in range(self.ntracks):
+            for s in range(self.sides):
+                self._index_track(t, s)
+
+    def _track_base(self, track, side):
+        return self.HEADER + (track * self.sides + side) * self.track_len
+
+    def _index_track(self, track, side):
+        base = self._track_base(track, side)
+        td = self.raw[base:base + self.track_len]
+        for i in range(0, 0x80, 2):
+            raw = struct.unpack_from('<H', td, i)[0]
+            if raw == 0:
+                continue
+            off = raw & 0x3FFF
+            dd = bool(raw & 0x8000)
+            if off >= len(td) or td[off] != 0xFE:
+                continue
+            sec = td[off + 3]
+            size = 128 << (td[off + 4] & 0x03)
+            data_off = dam_off = None
+            if dd:
+                for p in range(off + 7, min(off + 60, len(td) - 4)):
+                    if (td[p] == 0xA1 and td[p+1] == 0xA1 and td[p+2] == 0xA1
+                            and td[p+3] in (0xF8, 0xF9, 0xFA, 0xFB)):
+                        dam_off = p + 3; data_off = p + 4; break
+            else:
+                for p in range(off + 7, min(off + 60, len(td) - 2)):
+                    if td[p] in (0xF8, 0xF9, 0xFA, 0xFB):
+                        dam_off = p; data_off = p + 1; break
+            if data_off is None:
+                continue
+            self.index[(track, side, sec)] = (base + data_off, base + dam_off, size, dd)
+
+    def read_sector(self, track, side, sector):
+        rec = self.index.get((track, side, sector))
+        if not rec:
+            return None
+        data_off, dam_off, size, dd = rec
+        return bytes(self.raw[data_off:data_off + size])
+
+    def write_sector(self, track, side, sector, newdata):
+        rec = self.index.get((track, side, sector))
+        if not rec:
+            raise KeyError(f"sector ({track},{side},{sector}) not formatted")
+        data_off, dam_off, size, dd = rec
+        if len(newdata) != size:
+            raise ValueError(f"expected {size} bytes, got {len(newdata)}")
+        self.raw[data_off:data_off + size] = newdata
+        if dd:
+            crc = _crc16_ccitt(bytes([0xA1,0xA1,0xA1]) + bytes(self.raw[dam_off:dam_off+1+size]))
+        else:
+            crc = _crc16_ccitt(bytes(self.raw[dam_off:dam_off+1+size]))
+        self.raw[data_off + size] = (crc >> 8) & 0xFF
+        self.raw[data_off + size + 1] = crc & 0xFF
+
+    def save(self, path=None):
+        open(path or self.path, 'wb').write(self.raw)
+
+
+class Newdos80Writer:
+    """Append a file into free space of a NEWDOS/80 DSDD DMK image."""
+    def __init__(self, path):
+        self.w = DMKWriteImage(path)
+        self.spt = 18; self.gpl = 6; self.sec_per_gran = 5; self.offset = 36
+        self.dt, self.ds = 15, 0
+        self.gat_sec, self.hit_sec, self.ent_sec0 = 6, 7, 8
+
+    def _abs_to_phys(self, abs_sec):
+        cyl = abs_sec // (2*self.spt)
+        rem = abs_sec % (2*self.spt)
+        return cyl, rem // self.spt, rem % self.spt
+
+    def write_basic_file(self, fname, ext, source_lines):
+        return self._write(fname, ext, tokenize_basic(source_lines))
+
+    def write_data_file(self, fname, ext, data):
+        return self._write(fname, ext, data)
+
+    def _free_granule_run(self, gat, need, reserved_lumps=2):
+        """First contiguous run of `need` free granules. Granules are numbered
+        continuously across the disk: gran = lump*gpl + bit. A granule is free
+        when its GAT bit is clear and its lump byte is not 0xFF (fully reserved
+        system area). Returns the starting granule index, or None."""
+        gpl = self.gpl
+        def is_free(gran):
+            lump = gran // gpl; bit = gran % gpl
+            if lump < reserved_lumps or lump >= self.w.ntracks:
+                return False
+            if gat[lump] == 0xFF:
+                return False
+            return (gat[lump] & (1 << bit)) == 0
+        run = 0; start = None
+        for gran in range(reserved_lumps*gpl, self.w.ntracks*gpl):
+            if is_free(gran):
+                if run == 0:
+                    start = gran
+                run += 1
+                if run == need:
+                    return start
+            else:
+                run = 0; start = None
+        return None
+
+    def _extent_pairs(self, start_gran, ngran):
+        """Encode a contiguous granule run as NEWDOS extent pairs. A single
+        extent is (lump, (startgran_in_lump<<5)|(count-1)). The count field is
+        5 bits (max 32 granules) and may span lumps (granules are continuous).
+        Runs longer than 32 granules split into multiple extents. Returns a
+        list of (lump, packed_byte). NEWDOS itself writes one extent for runs
+        that fit, e.g. SARGON/CMD: lump 0, startgran 1, ngran 8."""
+        pairs = []
+        g = start_gran
+        remaining = ngran
+        while remaining > 0:
+            lump = g // self.gpl
+            startgran_in_lump = g % self.gpl
+            count = min(remaining, 32)
+            pairs.append((lump, (startgran_in_lump << 5) | ((count - 1) & 0x1F)))
+            g += count
+            remaining -= count
+            if len(pairs) > 4:
+                # Beyond 4 extents NEWDOS uses FXDE continuation entries, which
+                # this version does not yet emit. Contiguous allocation keeps us
+                # to a single extent in practice, so this is a guard, not a path.
+                raise RuntimeError("file too fragmented for v1 (needs FXDE)")
+        return pairs
+
+    def _write(self, fname, ext, data):
+        w = self.w
+        name8 = fname.upper().ljust(8)[:8].encode('ascii')
+        ext3  = ext.upper().ljust(3)[:3].encode('ascii')
+        nsec = (len(data) + 255) // 256
+        ngran = (nsec + self.sec_per_gran - 1) // self.sec_per_gran
+
+        gat = bytearray(w.read_sector(self.dt, self.ds, self.gat_sec))
+        start_gran = self._free_granule_run(gat, ngran)
+        if start_gran is None:
+            raise RuntimeError(f"no contiguous run of {ngran} free granules "
+                               f"on disk")
+        pairs = self._extent_pairs(start_gran, ngran)
+        if len(pairs) > 4:
+            raise RuntimeError("file needs more than 4 extents (FXDE) - "
+                               "not supported in this version")
+
+        # write data sectors across the contiguous granule run
+        for i in range(nsec):
+            gran = start_gran + (i // self.sec_per_gran)
+            sec_in_gran = i % self.sec_per_gran
+            abs_sec = gran*self.sec_per_gran + sec_in_gran + self.offset
+            cyl, side, sec = self._abs_to_phys(abs_sec)
+            chunk = data[i*256:(i+1)*256]
+            chunk = chunk + b'\x00'*(256 - len(chunk))
+            w.write_sector(cyl, side, sec, chunk)
+
+        # mark every allocated granule bit in the GAT (may span lumps)
+        for g in range(start_gran, start_gran + ngran):
+            lump = g // self.gpl; bit = g % self.gpl
+            gat[lump] |= (1 << bit)
+        w.write_sector(self.dt, self.ds, self.gat_sec, bytes(gat))
+
+        eof_byte = len(data) - (nsec-1)*256
+        if eof_byte == 256:
+            eof_byte = 0
+        rel = nsec
+
+        # find free directory entry (lowest DEC)
+        chosen = None
+        for sssss in range(0, self.spt - 8):
+            esec = self.ent_sec0 + sssss
+            d = w.read_sector(self.dt, self.ds, esec)
+            if d is None:
+                continue
+            for rrr in range(0, 256 // 32):
+                off = rrr * 32
+                if (d[off] & 0x10) == 0:
+                    chosen = (sssss, rrr, esec, off); break
+            if chosen:
+                break
+        if not chosen:
+            raise RuntimeError("directory full")
+        sssss, rrr, esec, off = chosen
+        dec = (rrr << 5) + sssss
+
+        ent = bytearray(32)
+        ent[0] = 0x10
+        ent[3] = eof_byte & 0xFF
+        ent[5:13] = name8
+        ent[13:16] = ext3
+        ent[16] = 0x96; ent[17] = 0x42; ent[18] = 0x96; ent[19] = 0x42
+        ent[20] = rel & 0xFF
+        ent[21] = (rel >> 8) & 0xFF
+        # write extent pairs starting at byte 22
+        p = 22
+        for (lump, packed) in pairs:
+            ent[p] = lump; ent[p+1] = packed; p += 2
+        for k in range(p, 32):
+            ent[k] = 0xFF
+        d = bytearray(w.read_sector(self.dt, self.ds, esec))
+        d[off:off+32] = ent
+        w.write_sector(self.dt, self.ds, esec, bytes(d))
+
+        hit = bytearray(w.read_sector(self.dt, self.ds, self.hit_sec))
+        hit[dec] = newdos_hashcode(name8, ext3)
+        w.write_sector(self.dt, self.ds, self.hit_sec, bytes(hit))
+        return dict(filename=f"{fname.upper()}/{ext.upper()}",
+                    lump=start_gran // self.gpl, sectors=nsec, dec=dec,
+                    hit=hit[dec], extents=len(pairs))
+
+    def save(self, path=None):
+        self.w.save(path)
+
+
 def main():
     ap = argparse.ArgumentParser(description="Extract TRS-80 NEWDOS/80 & "
                                              "G-DOS files from DMK/DSK images.")
@@ -834,10 +1231,90 @@ def main():
                          "(0=full). Writes to --output or stdout. The start "
                          "must be supplied because automatic start resolution "
                          "(GAT decoding) is not yet implemented.")
+    ap.add_argument("--write-basic", metavar="SRC.bas",
+                    help="tokenize an ASCII BASIC source file and write it "
+                         "into a COPY of the image (NEWDOS/80 DSDD). Use --as "
+                         "to set the on-disk name; output goes to --output or "
+                         "<image>.out.dsk. Validated against real NEWDOS.")
+    ap.add_argument("--write-file", metavar="SRC",
+                    help="write ANY host file verbatim into a COPY of the "
+                         "image (NEWDOS/80 DSDD): /CMD, /TXT, data, source, "
+                         "etc. Use --as to set the on-disk NAME/EXT. Handles "
+                         "multi-lump files; needs a contiguous free-granule "
+                         "run (no fragmented/FXDE allocation yet).")
+    ap.add_argument("--as", dest="as_name", metavar="NAME/EXT",
+                    help="on-disk filename for --write-basic / --write-file "
+                         "(for --write-basic the default extension is /BAS; "
+                         "for --write-file the source name and extension are "
+                         "used unless overridden)")
     ap.add_argument("--self-test", action="store_true",
                     help="run the built-in extraction regression "
                          "(meaningful only on the esnd-23 reference disk)")
     args = ap.parse_args()
+
+    if args.write_basic:
+        # Write a tokenized BASIC file into a COPY of the image. Never touches
+        # the original. Done before load_image (an empty target disk has no
+        # user files for the directory scan to lock onto).
+        import shutil
+        src_path = args.write_basic
+        try:
+            text = open(src_path, "r", encoding="latin-1").read()
+            source_lines = parse_basic_source(text)
+        except (OSError, ValueError) as e:
+            print(f"ERROR reading BASIC source: {e}", file=sys.stderr)
+            sys.exit(2)
+        if args.as_name:
+            nm = args.as_name.replace("\\", "/")
+            name, _, ext = nm.partition("/")
+            ext = ext or "BAS"
+        else:
+            base = os.path.basename(src_path)
+            name = os.path.splitext(base)[0]
+            ext = "BAS"
+        out_path = args.output or (os.path.splitext(args.image)[0] + ".out.dsk")
+        shutil.copy(args.image, out_path)
+        try:
+            nd = Newdos80Writer(out_path)
+            info = nd.write_basic_file(name, ext, source_lines)
+            nd.save(out_path)
+        except Exception as e:
+            print(f"ERROR writing file: {e}", file=sys.stderr)
+            sys.exit(2)
+        print(f"Wrote {info['filename']} ({info['sectors']} sector(s), "
+              f"lump {info['lump']}, DEC {info['dec']}) -> {out_path}")
+        sys.exit(0)
+
+    if args.write_file:
+        # Write ANY host file verbatim into a COPY of the image.
+        import shutil
+        src_path = args.write_file
+        try:
+            data = open(src_path, "rb").read()
+        except OSError as e:
+            print(f"ERROR reading source file: {e}", file=sys.stderr)
+            sys.exit(2)
+        if args.as_name:
+            nm = args.as_name.replace("\\", "/")
+            name, sep, ext = nm.partition("/")
+        else:
+            base = os.path.basename(src_path)
+            stem, dot, e = base.partition(".")
+            name = stem
+            ext = e if dot else ""
+        out_path = args.output or (os.path.splitext(args.image)[0] + ".out.dsk")
+        shutil.copy(args.image, out_path)
+        try:
+            nd = Newdos80Writer(out_path)
+            info = nd.write_data_file(name, ext, data)
+            nd.save(out_path)
+        except Exception as e:
+            print(f"ERROR writing file: {e}", file=sys.stderr)
+            sys.exit(2)
+        print(f"Wrote {info['filename']} ({len(data)} bytes, "
+              f"{info['sectors']} sector(s), lump {info['lump']}, "
+              f"DEC {info['dec']}) -> {out_path}")
+        sys.exit(0)
 
     img = load_image(args.image, args.verbose)
     if not img.sectors:

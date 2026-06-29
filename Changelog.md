@@ -6,6 +6,43 @@ disk-by-disk validation history also lives in the header of `trsextract.py`.
 
 ## trsextract.py
 
+### 1.3
+- Multi-extent write. A contiguous granule run longer than 32 granules is
+  encoded as up to four extent pairs (each extent's granule count is a 5-bit
+  field, max 32); the allocation stays a single contiguous run, only its
+  directory description is split. Files needing more than four extents are
+  rejected (would require FXDE continuation entries).
+- Validated at scale on real NEWDOS in sdltrs: `ALIEN/Z80`, 99 673 bytes
+  (390 sectors / 78 granules), written from the host as a 3-extent file,
+  appears in NEWDOS `DIR` on a real boot — confirming multi-extent encoding
+  and GAT marking across the whole run, not just the single-extent case.
+- Corrects the 1.2 note: write handles up to four extents, not "one extent of
+  ≤ 32 granules".
+
+### 1.2
+- Write support. Validated end-to-end against real NEWDOS/80 in sdltrs
+  (`LOAD`, `LIST`, `RUN` all succeed on written files).
+- `--write-basic SRC.bas [--as NAME/EXT]` tokenises an ASCII BASIC source into
+  the exact byte stream NEWDOS BASIC `SAVE` produces and writes it into a copy
+  of the image.
+- `--write-file SRC [--as NAME/EXT]` writes any host file verbatim (`/CMD`,
+  `/TXT`, data, source). EOF encoding validated against `SARGON/CMD`
+  (9032 bytes → eof_byte `0x48`, rel-sector 36, exact).
+- Multi-lump allocation: a file larger than one lump is placed in a contiguous
+  run of free granules and described by a single extent spanning lumps
+  (granules are numbered continuously across the disk, as NEWDOS does); GAT
+  bits are marked across every spanned lump. `SARGON0/CMD` (8 granules across
+  lumps) written to a blank disk loads and runs.
+- Built from Klaus Kämpf's `newdos.rb` and the NEWDOS/TRSDOS directory spec:
+  the HIT byte lives at offset == the Directory Entry Code `dec = (rrr<<5)+sssss`
+  (not a linear slot); entry byte 3 = EOF byte, 20-21 = EOF rel-sector, 16-19 =
+  update/access hash, 22+ = extent pairs; `newdos_hashcode()` is an XOR-rotate
+  over the 11-byte name+ext; DMK data CRC = CRC-16-CCITT preset `0xFFFF` over
+  `A1 A1 A1` + DAM + data (validated against 2880 NEWDOS-written sectors).
+- Write scope: append into free space, on a copy. Needs a single contiguous
+  free-granule run (no fragmented multi-extent / FXDE yet); single extent of
+  ≤ 32 granules; no overwrite / delete / defragment; NEWDOS/80 DSDD geometry.
+
 ### 1.1
 - Full geometry auto-detection, including G-DOS and single-density disks.
 - Generalized the sector model to all tested geometries:
@@ -62,6 +99,26 @@ disk-by-disk validation history also lives in the header of `trsextract.py`.
 
 ## TRS80Extract (SwiftUI wrapper)
 
+### 1.2
+- Redesigned start screen with two side-by-side intents: **Read a disk**
+  (drop a `.dmk`/`.dsk` to list and extract) and **Write a file to a disk**
+  (choose/drop a target disk, then drop the file to add). The two intents are
+  explicit, so a drop is never ambiguous.
+- Write flow: dropping the payload opens a naming sheet (pre-filled
+  `NAME/EXT`, with a *Tokenize as BASIC* toggle auto-selected for `.bas`
+  sources). Writing goes into a COPY (`<target>.out.dsk`); the original is
+  never modified. After writing, the app loads the listing from the new image
+  and reveals it in Finder.
+- Reads/writes via `trsextract.py` 1.3 (`--write-file` / `--write-basic`).
+- Fix: the Write button could stay disabled until an unrelated control was
+  toggled, because the filename field and the sheet were set in the same
+  synchronous pass; sheet presentation is now deferred one runloop tick so the
+  field commits first.
+
 ### 1.1
+- Cosmetic fixes to the initial wrapper (button layout / labels).
+
+### 1.0
 - Initial wrapper: drag-and-drop a `.dmk`/`.dsk`, directory table, Extract All
-  with folder picker and log viewer. Shells out to `python3 trsextract.py`.
+  with folder picker and log viewer. Read and extract only. Shells out to
+  `python3 trsextract.py`.

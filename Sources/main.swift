@@ -1,4 +1,4 @@
-// TRS80Extract - a SwiftUI front end for trsextract.py
+// TRS80Extract 1.2 - a SwiftUI front end for trsextract.py
 // Copyright (C) 2026 Egbert Schroeer
 //
 // This program is free software: you can redistribute it and/or modify it
@@ -7,8 +7,14 @@
 // any later version. Distributed WITHOUT ANY WARRANTY.
 // See <https://www.gnu.org/licenses/>.
 //
-// Option-A wrapper: shells out to `python3 trsextract.py`. Requires Python 3
+// wrapper function: shells out to `python3 trsextract.py`. Requires Python 3
 // on the system and the trsextract.py script (located via the resolver below).
+//
+// new extended version of the start screen presents now in two intents side by side:
+//   - "Read a disk"          drop a .dmk/.dsk to list and extract it.
+//   - "Write a file to a disk" choose/drop a target disk, then drop the file
+//                             to add; writes via --write-file / --write-basic
+//                             into a COPY (<target>.out.dsk), never the original.
 
 import SwiftUI
 import AppKit
@@ -142,6 +148,27 @@ struct TrsRunner {
         return err   // extraction progress is printed on stderr
     }
 
+    /// Write a host file into a COPY of the image. If `asName` is non-empty it
+    /// is passed as NAME/EXT; `tokenizeBasic` selects --write-basic vs
+    /// --write-file. Returns (outputImagePath, toolMessage).
+    static func writeFile(_ image: String, source: String, asName: String,
+                          tokenizeBasic: Bool, output: String)
+        throws -> (String, String)
+    {
+        var args = [image]
+        args += tokenizeBasic ? ["--write-basic", source]
+                              : ["--write-file", source]
+        if !asName.isEmpty { args += ["--as", asName] }
+        args += ["-o", output]
+        let (out, err, code) = try run(args)
+        if code != 0 {
+            throw TrsError.runFailed(err.isEmpty ? out : err)
+        }
+        // tool prints a "Wrote ..." line on stdout
+        let msg = out.split(separator: "\n").first.map(String.init) ?? "Done."
+        return (output, msg)
+    }
+
     /// Parse the stdout listing into header lines + file rows.
     static func parseListing(_ out: String, err: String) -> ListResult {
         var header: [String] = []
@@ -186,6 +213,13 @@ struct ContentView: View {
     @State private var extractLog: String = ""
     @State private var showLog = false
     @State private var dropTargeted = false
+    // write support
+    @State private var pendingWriteSource: String? = nil
+    @State private var writeAsName: String = ""
+    @State private var writeTokenizeBasic: Bool = false
+    @State private var showWriteSheet = false
+    @State private var writeDropTargeted = false
+    @State private var writeTargetDisk: String? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -194,12 +228,12 @@ struct ContentView: View {
             if let r = result {
                 listingView(r)
             } else {
-                dropZone
+                startScreen
             }
             Divider()
             footer
         }
-        .frame(minWidth: 640, minHeight: 480)
+        .frame(minWidth: 720, minHeight: 480)
     }
 
     private var header: some View {
@@ -216,21 +250,71 @@ struct ContentView: View {
         .padding()
     }
 
-    private var dropZone: some View {
+    /// Start screen: two intents side by side.
+    private var startScreen: some View {
+        HStack(spacing: 0) {
+            readZone
+            Divider()
+            writeZone
+        }
+    }
+
+    /// LEFT — read a disk: drop a .dmk/.dsk to list & extract it.
+    private var readZone: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 12)
                 .strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [8]))
                 .foregroundColor(dropTargeted ? .accentColor : .secondary)
                 .padding()
             VStack(spacing: 10) {
-                Image(systemName: "externaldrive.fill.badge.plus")
-                    .font(.system(size: 44)).foregroundColor(.secondary)
-                Text("Drop a .dmk or .dsk image here").foregroundColor(.secondary)
+                Image(systemName: "externaldrive.fill.badge.person.crop")
+                    .font(.system(size: 40)).foregroundColor(.secondary)
+                Text("Read a disk").font(.headline)
+                Text("Drop a .dmk or .dsk image here\nto list and extract its files")
+                    .multilineTextAlignment(.center)
+                    .font(.caption).foregroundColor(.secondary)
                 Button("Choose Disk Image…") { chooseImage() }
             }
+            .padding()
         }
         .onDrop(of: [.fileURL], isTargeted: $dropTargeted) { providers in
             handleDrop(providers)
+        }
+    }
+
+    /// RIGHT — write a file to a disk: pick the target disk, then drop the file.
+    private var writeZone: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [8]))
+                .foregroundColor(writeDropTargeted ? .accentColor
+                                 : (writeTargetDisk != nil ? .green : .secondary))
+                .padding()
+            VStack(spacing: 10) {
+                Image(systemName: "square.and.arrow.down.on.square")
+                    .font(.system(size: 40)).foregroundColor(.secondary)
+                Text("Write a file to a disk").font(.headline)
+                if let disk = writeTargetDisk {
+                    Text("Target: \((disk as NSString).lastPathComponent)")
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundColor(.green)
+                        .lineLimit(1).truncationMode(.middle)
+                    Text("Now drop the file to add\n(.bas, .cmd, .txt, data…)")
+                        .multilineTextAlignment(.center)
+                        .font(.caption).foregroundColor(.secondary)
+                    Button("Change target disk…") { chooseWriteTargetDisk() }
+                        .controlSize(.small)
+                } else {
+                    Text("Step 1 — choose the target disk\n(an empty/formatted .dmk)")
+                        .multilineTextAlignment(.center)
+                        .font(.caption).foregroundColor(.secondary)
+                    Button("Choose Target Disk…") { chooseWriteTargetDisk() }
+                }
+            }
+            .padding()
+        }
+        .onDrop(of: [.fileURL], isTargeted: $writeDropTargeted) { providers in
+            handleWriteZoneDrop(providers)
         }
     }
 
@@ -280,12 +364,57 @@ struct ContentView: View {
             }
             .padding().frame(width: 560, height: 420)
         }
+        .sheet(isPresented: $showWriteSheet) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Write file to disk image").font(.headline)
+                if let src = pendingWriteSource {
+                    Text("Source: \((src as NSString).lastPathComponent)")
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundColor(.secondary)
+                }
+                HStack {
+                    Text("On-disk name:")
+                    TextField("NAME/EXT  (e.g. PROG/CMD)", text: $writeAsName)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
+                }
+                Toggle("Tokenize as BASIC (source is ASCII .bas)",
+                       isOn: $writeTokenizeBasic)
+                Text("Writes into a COPY of the loaded image (…\u{2009}.out.dsk). "
+                   + "The original is never modified.")
+                    .font(.caption).foregroundColor(.secondary)
+                HStack {
+                    Spacer()
+                    Button("Cancel") { showWriteSheet = false }
+                    Button("Write") { performWrite() }
+                        .keyboardShortcut(.defaultAction)
+                        .disabled(writeAsName.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+            .padding().frame(width: 480)
+            .onAppear {
+                // Seed the name field within the sheet's own render cycle so the
+                // Write button's .disabled() check sees the value immediately.
+                // (Setting it before presentation left the button disabled until
+                // an unrelated control, e.g. the toggle, forced a re-render.)
+                if let src = pendingWriteSource {
+                    let base = (src as NSString).lastPathComponent
+                    let stem = (base as NSString).deletingPathExtension
+                    let ext = (base as NSString).pathExtension
+                    let name8 = String(stem.prefix(8)).uppercased()
+                    let ext3 = String(ext.prefix(3)).uppercased()
+                    writeAsName = ext3.isEmpty ? name8 : "\(name8)/\(ext3)"
+                    writeTokenizeBasic = ext.lowercased() == "bas"
+                }
+            }
+        }
     }
 
     // MARK: actions
 
     private func reset() {
         imagePath = nil; result = nil; extractLog = ""
+        writeTargetDisk = nil; pendingWriteSource = nil
         statusMessage = "Drop a .dmk or .dsk disk image to begin."
     }
 
@@ -328,6 +457,101 @@ struct ContentView: View {
             } catch {
                 DispatchQueue.main.async {
                     statusMessage = "Error: \(error.localizedDescription)"
+                    isBusy = false
+                }
+            }
+        }
+    }
+
+    // MARK: write-zone actions (two-step: target disk, then file)
+
+    /// Step 1: choose the target disk for writing.
+    private func chooseWriteTargetDisk() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.prompt = "Choose Target Disk"
+        if let dmk = UTType(filenameExtension: "dmk"),
+           let dsk = UTType(filenameExtension: "dsk") {
+            panel.allowedContentTypes = [dmk, dsk]
+        }
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        writeTargetDisk = url.path
+        statusMessage = "Target disk set. Now drop the file to add."
+    }
+
+    /// A file (disk or payload) was dropped on the WRITE zone.
+    /// If no target disk is set yet and a disk image is dropped, it becomes the
+    /// target. Otherwise the dropped file is treated as the payload to write.
+    private func handleWriteZoneDrop(_ providers: [NSItemProvider]) -> Bool {
+        guard let provider = providers.first else { return false }
+        _ = provider.loadObject(ofClass: URL.self) { url, _ in
+            guard let url = url else { return }
+            let ext = url.pathExtension.lowercased()
+            let isDiskImage = ["dmk", "dsk", "hdv", "jv1", "jv3"].contains(ext)
+            DispatchQueue.main.async {
+                if writeTargetDisk == nil {
+                    if isDiskImage {
+                        writeTargetDisk = url.path
+                        statusMessage = "Target disk set. Now drop the file to add."
+                    } else {
+                        statusMessage = "Choose the target disk first "
+                            + "(an empty/formatted .dmk), then drop the file."
+                    }
+                    return
+                }
+                // target already set: this drop is the payload
+                if isDiskImage {
+                    statusMessage = "That's a disk image. Drop a FILE to add "
+                        + "(.bas, .cmd, .txt…), or change the target disk."
+                    return
+                }
+                prepareWriteSheet(for: url.path)
+            }
+        }
+        return true
+    }
+
+    /// Open the write sheet for a source file. The sheet's own .onAppear
+    /// populates the name field and toggle, so the Write button is correctly
+    /// enabled the moment the sheet appears.
+    private func prepareWriteSheet(for path: String) {
+        pendingWriteSource = path
+        showWriteSheet = true
+    }
+
+    private func performWrite() {
+        guard let img = writeTargetDisk, let src = pendingWriteSource else { return }
+        showWriteSheet = false
+        let asName = writeAsName.trimmingCharacters(in: .whitespaces)
+        let tok = writeTokenizeBasic
+        // output: <target-stem>.out.dsk next to the target disk
+        let stem = (img as NSString).deletingPathExtension
+        let outPath = stem + ".out.dsk"
+        isBusy = true
+        statusMessage = "Writing \(asName)…"
+        DispatchQueue.global().async {
+            do {
+                let (outImg, msg) = try TrsRunner.writeFile(
+                    img, source: src, asName: asName,
+                    tokenizeBasic: tok, output: outPath)
+                // load the listing from the NEW image so the user sees the file
+                let r = try? TrsRunner.list(outImg)
+                DispatchQueue.main.async {
+                    statusMessage = msg
+                    if let r = r {
+                        result = r
+                        imagePath = outImg   // now viewing the written copy
+                    }
+                    isBusy = false
+                    NSWorkspace.shared.activateFileViewerSelecting(
+                        [URL(fileURLWithPath: outImg)])
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    statusMessage = "Error: \(error.localizedDescription)"
+                    extractLog = error.localizedDescription
                     isBusy = false
                 }
             }

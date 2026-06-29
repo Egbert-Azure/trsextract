@@ -28,20 +28,21 @@ The optional SwiftUI wrapper. The start screen offers two intents side by side
 ![Start screen: Read a disk | Write a file to a disk](screenshots/dropzone.png)
 
 Reading — drop a `.dmk`/`.dsk` and browse its directory; **Extract All** pulls
-every file out.
+every file out to a folder you pick.
 
 ![Directory listing with Extract All](screenshots/listing.png)
 
-![Where the extracted files land](screenshots/export.png)
+![Choosing where the extracted files land](screenshots/export.png)
 
-Writing — set the target disk (it turns green), drop the file to add, confirm
-the on-disk `NAME/EXT`, and the file is written into a **copy**.
+Writing — set the target disk (the zone turns green and shows the target),
+drop the file to add, confirm the on-disk `NAME/EXT`, and the file is written
+into a **copy**.
 
-![Write zone with a target disk set](screenshots/write-target.png)
+![Write zone with a target disk set](screenshots/dropzone2.png)
 
-![Naming sheet before writing](screenshots/write-sheet.png)
+![Naming sheet before writing](screenshots/writefile.png)
 
-![The written copy, with the new file in the listing](screenshots/write-result.png)
+![The written copy, with the new file in the listing](screenshots/automaticlistresult.png)
 ---
 
 ## What it does

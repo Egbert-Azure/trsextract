@@ -32,7 +32,7 @@ Standard system files (BOOT/SYS, DIR/SYS, SYS0–SYS21, common utilities) are hi
 | esnd-13a | DMK | 41 | 2 | 5 side 1 | 24 | 22 | over-read? |
 | esnd-13b | DMK | 41 | 2 | 5 side 1 | 24 | 22 | over-read? |
 | esnd-14 | DMK | 41 | 2 | 15 side 0 | 80 | 47 | over-read? |
-| **esnd-15** | — | — | — | — | — | — | ⚠️ ERRORS/DAT       16   12      0  77:34 |
+| esnd-15 | DMK | 41 | 2 | 5 side 1 | 63 | 39 | over-read? |
 | esnd-16 | DMK | 40 | 1 | 17 | 53 | 37 |  |
 | esnd-17 | DMK | 40 | 1 | 17 | 49 | 22 |  |
 | esnd-18 | DMK | 41 | 2 | 5 side 1 | 16 | 10 | over-read? |
@@ -42,7 +42,7 @@ Standard system files (BOOT/SYS, DIR/SYS, SYS0–SYS21, common utilities) are hi
 | esnd-21 | DMK | 41 | 2 | 5 side 1 | 34 | 4 | over-read? |
 | esnd-23 | DMK | 81 | 2 | 15 side 0 | 22 | 20 | over-read? |
 | esnd-24 | DMK | 41 | 2 | 5 side 1 | 45 | 43 | over-read? |
-| **esnd-25** | — | — | — | — | — | — | ⚠️ ERRORS/DAT       16   12      0  77:34 |
+| esnd-25 | DMK | 41 | 2 | 5 side 1 | 58 | 34 | over-read? |
 | esnd-26 | DMK | 41 | 2 | 5 side 1 | 37 | 21 | over-read? |
 | esnd-27 | DMK | 41 | 2 | 5 side 1 | 41 | 39 | over-read? |
 | esnd-28 | DMK | 40 | 1 | 17 | 24 | 14 |  |
@@ -436,8 +436,18 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · SYS22/SYS · BASIC/CMD · ABSEND/DAT · PMO
 
 `/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-15.dmk`
 
-> ⚠️ **ERRORS/DAT       16   12      0  77:34**
+- Format **DMK**, 41 tracks, 2 side(s), directory track 5 side 1  _(track count suggests an imaging over-read)_
 
+- **Distinctive files (39):** `RESCUE/CMD`, `PASCAL/CMD`, `CODEGEN/CMD`, `PASCAL/OV1`, `KEY/HLP`, `KEYMOD/CMD`, `CODEINIT/DAT`, `PASCAL/OV2`, `FETT/PCL`, `PASCAL/OV3`, `CMD/HLP`, `HELP/HLP`, `ED/CMD`, `RUN/CMD`, `SYSDUP/JCL`, `COPYSSDS/JCL`, `SWITCH/CMD`, `SETDATE/CMD`, `ERRORS/DAT`, `PASCALB/CMD`, `ZAPDUP/JCL`, `ZAPNAMES/ILF`, `STRINGS/OBJ`, `ZEISATZ1/BAS`, `HRG/PCL`, `WECKER/CMD`, `FETT/CMD`, `HRG1/PCL`, `HRG2/PCL`, `TRSLIB/OBJ`, `CHAINBLD/CMD`, `COPYSYS/ILF`, `HRGPLUS/CIM`, `HELP/CMD`, `ZEIEDIT/BAS`, `LINKLOAD/CMD`, `HRGLINK/JCL`, `HRGPCL`, `HRGPROC/PCL`
+
+- File types: SYS×24, CMD×14, PCL×5, JCL×4, HLP×3, DAT×2, ILF×2, OBJ×2, BAS×2, OV1×1, OV2×1, OV3×1, CIM×1, (none)×1
+
+<details><summary>Full file list (63)</summary>
+
+
+BOOT/SYS · SYS6/SYS · SYS14/SYS · RESCUE/CMD · PASCAL/CMD · CODEGEN/CMD · PASCAL/OV1 · KEY/HLP · DIR/SYS · SYS7/SYS · SYS15/SYS · KEYMOD/CMD · CODEINIT/DAT · PASCAL/OV2 · FETT/PCL · PASCAL/OV3 · SYS0/SYS · SYS8/SYS · SYS16/SYS · CMD/HLP · HELP/HLP · ED/CMD · RUN/CMD · SYSDUP/JCL · SYS1/SYS · SYS9/SYS · SYS17/SYS · COPYSSDS/JCL · SWITCH/CMD · SETDATE/CMD · ERRORS/DAT · SYS2/SYS · SYS10/SYS · SYS18/SYS · PASCALB/CMD · ZAPDUP/JCL · ZAPNAMES/ILF · STRINGS/OBJ · ZEISATZ1/BAS · SYS3/SYS · SYS11/SYS · SYS19/SYS · HRG/PCL · WECKER/CMD · FETT/CMD · HRG1/PCL · HRG2/PCL · SYS4/SYS · SYS12/SYS · SYS20/SYS · TRSLIB/OBJ · CHAINBLD/CMD · COPYSYS/ILF · HRGPLUS/CIM · HELP/CMD · SYS5/SYS · SYS13/SYS · SYS21/SYS · ZEIEDIT/BAS · LINKLOAD/CMD · HRGLINK/JCL · HRGPCL · HRGPROC/PCL
+
+</details>
 
 ### esnd-16
 
@@ -596,8 +606,18 @@ BOOT/SYS · T83/PCL · T122/PCL · T41/PCL · DIR/SYS · M0069A01/PCL · T41/OBJ
 
 `/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-25.dmk`
 
-> ⚠️ **ERRORS/DAT       16   12      0  77:34**
+- Format **DMK**, 41 tracks, 2 side(s), directory track 5 side 1  _(track count suggests an imaging over-read)_
 
+- **Distinctive files (34):** `RESCUE/CMD`, `PASCAL/CMD`, `CODEGEN/CMD`, `PASCAL/OV1`, `KEY/HLP`, `USRLIB/MAC`, `CODEINIT/DAT`, `PASCAL/OV2`, `LCDVR/CMD`, `PASCAL/OV3`, `CMD/HLP`, `HELP/HLP`, `ED/CMD`, `RUN/CMD`, `SYSDUP/JCL`, `COPYSSDS/JCL`, `SWITCH/CMD`, `SETDATE/CMD`, `ERRORS/DAT`, `PASCALB/CMD`, `ZAPDUP/JCL`, `ZAPNAMES/ILF`, `STRINGS/OBJ`, `CREF80/CMD`, `SCRIPSIT/CMD`, `WECKER/CMD`, `TRSLIB/OBJ`, `CHAINBLD/CMD`, `COPYSYS/ILF`, `FORLIB/REL`, `HELP/CMD`, `MAXWELL/SRC`, `USRLIB/REL`, `CRAM2/SRC`
+
+- File types: SYS×24, CMD×14, HLP×3, JCL×3, DAT×2, ILF×2, OBJ×2, REL×2, SRC×2, OV1×1, MAC×1, OV2×1, OV3×1
+
+<details><summary>Full file list (58)</summary>
+
+
+BOOT/SYS · SYS6/SYS · SYS14/SYS · RESCUE/CMD · PASCAL/CMD · CODEGEN/CMD · PASCAL/OV1 · KEY/HLP · DIR/SYS · SYS7/SYS · SYS15/SYS · USRLIB/MAC · CODEINIT/DAT · PASCAL/OV2 · LCDVR/CMD · PASCAL/OV3 · SYS0/SYS · SYS8/SYS · SYS16/SYS · CMD/HLP · HELP/HLP · ED/CMD · RUN/CMD · SYSDUP/JCL · SYS1/SYS · SYS9/SYS · SYS17/SYS · COPYSSDS/JCL · SWITCH/CMD · SETDATE/CMD · ERRORS/DAT · SYS2/SYS · SYS10/SYS · SYS18/SYS · PASCALB/CMD · ZAPDUP/JCL · ZAPNAMES/ILF · STRINGS/OBJ · CREF80/CMD · SYS3/SYS · SYS11/SYS · SYS19/SYS · SCRIPSIT/CMD · WECKER/CMD · SYS4/SYS · SYS12/SYS · SYS20/SYS · TRSLIB/OBJ · CHAINBLD/CMD · COPYSYS/ILF · FORLIB/REL · HELP/CMD · SYS5/SYS · SYS13/SYS · SYS21/SYS · MAXWELL/SRC · USRLIB/REL · CRAM2/SRC
+
+</details>
 
 ### esnd-26
 

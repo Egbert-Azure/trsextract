@@ -38,6 +38,14 @@
 # -----------------------------------------------------------------------------
 # VERSION HISTORY
 # -----------------------------------------------------------------------------
+# 1.1  (2026-06-30)  FIX: false "damaged" flag on disks containing ERRORS/DAT.
+#        Error detection matched the bare substring "ERROR" anywhere in a log,
+#        so a disk whose directory simply lists a file named ERRORS/DAT
+#        (esnd-15, esnd-25) was wrongly flagged and its row blanked. Detection
+#        now requires a real trsextract error line -- "ERROR:" (incl. the
+#        HD-volume notice) or "ERROR reading"/"ERROR writing" -- so genuine
+#        failures (e.g. GAMES.DSK HD volume) still flag while the ERRORS/DAT
+#        filename does not. esnd-15/25 now catalog as clean DMK (63 / 58 files).
 # 1.0  (2026-06-29)  First release. Merges per-disk trsextract logs into a
 #        single Markdown catalog: summary table (format, geometry, file count,
 #        distinctive-file count, error flags) plus a per-disk section with the
@@ -50,7 +58,7 @@
 #        3 flagged.
 # -----------------------------------------------------------------------------
 
-__version__ = "1.0"
+__version__ = "1.1"
 
 import os
 import re
@@ -112,7 +120,17 @@ def parse_log(path):
             if s.startswith("### source:"):
                 info["source"] = s.split(":", 1)[1].strip()
                 continue
-            if "ERROR" in s and info["error"] is None:
+            # A genuine trsextract failure prints a line beginning with
+            # "ERROR:" (e.g. "ERROR: no sectors decoded...", the HD-volume
+            # notice "ERROR: no directory found...") or "ERROR reading/writing".
+            # NOTE: a bare startswith("ERROR") is NOT enough -- the filename
+            # ERRORS/DAT (on esnd-15 / esnd-25) also starts with those letters
+            # and appears in the directory table. Require the colon or the
+            # reading/writing verb so a real message is matched but a filename
+            # is not.
+            st = s.lstrip()
+            if (st.startswith("ERROR:") or st.startswith("ERROR reading")
+                    or st.startswith("ERROR writing")) and info["error"] is None:
                 info["error"] = s.strip()
             m = re.search(r"trsextract\s+\S+\s+Format:\s+(\S+)\s+Tracks:\s+(\d+)", s)
             if m:

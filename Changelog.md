@@ -25,7 +25,6 @@ disk-by-disk validation history also lives in the header of `trsextract.py`.
   still → JV1.
 - Catalog note: clear the esnd-15 / esnd-25 "damaged directory" flag on the
   next `generate-logs.sh` sweep.
-- thanks to [Jens Gunther](https://gitlab.com/jengun) hinting something is wrong
 
 ### 1.4
 - Fix: a headerless JV1 image was mis-detected as JV3. A 200 KB JV1 disk
@@ -167,6 +166,16 @@ disk-by-disk validation history also lives in the header of `trsextract.py`.
 
 Batch companions to `trsextract.py` for cataloguing a whole disk-image
 collection in one pass. Read-only over the images (listing only, no `-o`).
+
+### 1.1 (catalog-logs.py)
+- Fix: `catalog-logs.py` flagged any disk whose log contained the substring
+  "ERROR" as damaged, blanking its row. A disk simply listing a file named
+  `ERRORS/DAT` (esnd-15, esnd-25) tripped this and was wrongly reported as a
+  damaged pair. Detection now requires a real trsextract error line —
+  `ERROR:` (including the HD-volume notice) or `ERROR reading`/`ERROR writing`
+  — so genuine failures (e.g. `GAMES.DSK` HD volume) still flag while the
+  `ERRORS/DAT` filename does not. With trsextract 1.5, esnd-15 and esnd-25 now
+  catalog cleanly as DMK (63 and 58 files); they were never damaged.
 
 ### 1.0
 - `generate-logs.sh [IMAGE_DIR] [LOG_DIR]` runs the `trsextract.py` listing

@@ -2,6 +2,20 @@
 #
 # generate-logs.sh - run trsextract listing over every disk image in a tree
 # and save one log file per disk. Companion to catalog-logs.py.
+# Copyright (C) 2026  Egbert Schroeer
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 # Usage:
 #   ./generate-logs.sh [IMAGE_DIR] [LOG_DIR]
@@ -15,6 +29,18 @@
 #
 # This does NOT extract files (no -o), so nothing is written to your disks or
 # anywhere except LOG_DIR. Read-only over your collection.
+#
+# -----------------------------------------------------------------------------
+# VERSION HISTORY
+# -----------------------------------------------------------------------------
+# 1.0  (2026-06-29)  First release. Recurses a directory tree for DMK/DSK/JV1/
+#        JV3 images, runs the trsextract.py listing (-v) on each, and saves one
+#        <diskstem>.log per image into LOG_DIR. Locates trsextract.py next to
+#        this script or in $PWD. Flags any disk whose log contains ERROR
+#        (hard-disk volumes, damaged directories) without stopping the run, and
+#        prints an ok/flagged summary. Read-only over the image collection
+#        (listing only, no -o). First sweep: 69 images, 66 clean, 3 flagged.
+# -----------------------------------------------------------------------------
 
 set -u
 

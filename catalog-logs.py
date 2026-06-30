@@ -1,6 +1,21 @@
 #!/usr/bin/env python3
 #
 # catalog-logs.py - merge trsextract per-disk logs into one browsable catalog.
+# Copyright (C) 2026  Egbert Schroeer
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
 # Companion to generate-logs.sh.
 #
 # Usage:
@@ -19,6 +34,23 @@
 # program, an odd extension, a personal tool - are what you'll recognise. Those
 # are surfaced in a dedicated "distinctive files" line per disk and counted in
 # the summary so you can skim for the disks worth opening.
+#
+# -----------------------------------------------------------------------------
+# VERSION HISTORY
+# -----------------------------------------------------------------------------
+# 1.0  (2026-06-29)  First release. Merges per-disk trsextract logs into a
+#        single Markdown catalog: summary table (format, geometry, file count,
+#        distinctive-file count, error flags) plus a per-disk section with the
+#        full file list. Standard system furniture (BOOT/SYS, DIR/SYS,
+#        SYS0-SYS21, common utilities) is filtered from the "distinctive files"
+#        line so disk-identifying content stands out. Natural disk-name sort;
+#        error logs surface as flagged rows. Output carries a self-documenting
+#        header (auto-generated notice, refresh command, cross-reference to the
+#        hand-maintained Disk_Inventory.md). First sweep: 69 images, 66 clean,
+#        3 flagged.
+# -----------------------------------------------------------------------------
+
+__version__ = "1.0"
 
 import os
 import re

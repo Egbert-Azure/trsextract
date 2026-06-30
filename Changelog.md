@@ -6,6 +6,25 @@ disk-by-disk validation history also lives in the header of `trsextract.py`.
 
 ## trsextract.py
 
+### 1.4
+- Fix: a headerless JV1 image was mis-detected as JV3. A 200 KB JV1 disk
+  (`SIDEKICK.JV1`, 80×10×256) has no header, so its first ~8.7 KB of program
+  bytes parsed as plausible JV3 sector descriptors and the JV3 branch won —
+  yielding garbage (`Format: JV3, Tracks: 255, dir track 126`).
+- Detection now routes on file extension as a first guess, then validates by
+  directory score. DMK has a real header and is trusted when it verifies.
+  JV1 and JV3 are headerless and byte-ambiguous, so the extension only sets
+  the JV tie-break order; the format actually chosen is whichever yields the
+  higher directory score (`_best_dir_score`). A mislabelled JV1/JV3 — or a JV1
+  named `.dsk` — self-corrects. Unknown/missing extension falls back to the
+  prior content order (DMK header first, then JV tie-break).
+- `-v` now prints the per-format directory score, so the detection decision is
+  auditable rather than asserted.
+- Validated: `SIDEKICK.JV1` → JV1 (dir score 89 vs JV3 23), directory
+  auto-located at track 17 (its DDSL) with no `--track` needed, 47/47 files
+  extracted; `esnd-23.dmk` still → DMK, self-test PASS, 22/22 files (DMK path
+  unchanged); a JV1 renamed `.dsk` → JV1.
+
 ### 1.3
 - Multi-extent write. A contiguous granule run longer than 32 granules is
   encoded as up to four extent pairs (each extent's granule count is a 5-bit

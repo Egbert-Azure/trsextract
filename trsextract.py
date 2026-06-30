@@ -49,6 +49,25 @@ authoritative source before trusting it on new disks.
 -----------------------------------------------------------------------------
 VERSION HISTORY
 -----------------------------------------------------------------------------
+1.4  (2026-06-30)  FIX: JV1 mis-detected as JV3; extension-routed detection.
+       - BUG: a headerless JV1 image (e.g. SIDEKICK.JV1, 200 KB = 80x10x256)
+         was claimed by the JV3 parser, whose first ~8.7 KB of program bytes
+         parsed as plausible sector descriptors. Result was garbage:
+         "Format: JV3, Tracks: 255, dir track 126".
+       - FIX: load_image now routes on file extension as a first guess, then
+         VALIDATES by directory score. DMK has a real header and is trusted
+         when its header verifies. JV1 and JV3 are headerless and byte-
+         ambiguous, so the extension only sets the JV tie-break order; the
+         actual choice is whichever format yields the higher directory score
+         (_best_dir_score). A mislabelled JV1/JV3 (or .dsk-named JV1) is thus
+         self-corrected. Unknown/missing extension falls back to DMK-header-
+         first, then JV tie-break (old content-order behaviour).
+       - VALIDATED: SIDEKICK.JV1 -> JV1 (dir score 89 vs JV3 23), directory
+         auto-located at track 17 (DDSL) with NO --track needed; 47/47 files
+         extracted. Mislabelled MISLABELED.dsk (JV1 content) also -> JV1.
+       - NOTE: -v now prints the per-format directory score so the detection
+         decision is auditable rather than asserted.
+
 1.3  (2026-06-28)  Multi-EXTENT write, validated at scale on real NEWDOS.
        - A contiguous granule run longer than 32 granules is now encoded as up
          to four extent pairs (each extent's granule count is a 5-bit field,
@@ -288,7 +307,7 @@ KNOWN ISSUES / TODO
 -----------------------------------------------------------------------------
 """
 
-__version__ = "1.3"
+__version__ = "1.4"
 
 import argparse
 import os
@@ -469,33 +488,101 @@ class JV3Image(DiskImage):
 # Format detection
 # ---------------------------------------------------------------------------
 
-def load_image(path, verbose=False):
-    with open(path, "rb") as f:
-        data = f.read()
-    # DMK heuristic: byte0 in {0x00,0xFF}, byte1 plausible track count,
-    # track_len in a sane range.
-    if len(data) >= 16:
-        b0, b1 = data[0], data[1]
-        track_len = struct.unpack_from("<H", data, 2)[0]
-        plausible_dmk = (b0 in (0x00, 0xFF) and 30 <= b1 <= 96
-                         and 0x80 < track_len <= 0x3FFF)
-        if plausible_dmk:
-            try:
-                img = DMKImage(data, verbose)
-                if img.sectors:
-                    return img
-            except Exception as e:
-                if verbose:
-                    print(f"[detect] DMK parse failed: {e}", file=sys.stderr)
-    # JV3: try header, see if it yields sectors
+def _best_dir_score(img):
+    """Best directory-track score this parse achieves, used to judge whether a
+    candidate format actually yields a decodable NEWDOS/80 / G-DOS directory.
+    JV1 and JV3 have no header to distinguish them, so the only reliable signal
+    of a correct parse is that *some* track decodes as a clean directory."""
+    if img is None or not img.sectors:
+        return -1
+    best = 0
+    for track in range(img.ntracks):
+        for side in range(img.sides):
+            s, _ = score_track_as_directory(img, track, side)
+            if s > best:
+                best = s
+    return best
+
+
+def _build_jv(data, verbose):
+    """Construct both JV candidates and return the one whose best directory
+    track scores higher. They are byte-ambiguous (no header), so we let the
+    directory validator break the tie rather than trusting a size heuristic."""
+    cands = []
     try:
-        img = JV3Image(data, verbose)
-        if len(img.sectors) > 20:
-            return img
+        cands.append(JV3Image(data, verbose))
     except Exception:
         pass
-    # Fall back to JV1
-    return JV1Image(data, verbose)
+    try:
+        cands.append(JV1Image(data, verbose))
+    except Exception:
+        pass
+    if not cands:
+        return None
+    scored = [(_best_dir_score(c), c) for c in cands]
+    scored.sort(key=lambda t: t[0], reverse=True)
+    if verbose:
+        for sc, c in scored:
+            print(f"[detect] {c.fmt}: best dir score {sc}", file=sys.stderr)
+    return scored[0][1]
+
+
+def load_image(path, verbose=False):
+    """Pick a parser by file extension as a first guess, then validate by
+    decoding a directory; on a weak result, retry the alternate format and keep
+    whichever yields the better directory. DMK is header-verified and so is
+    trusted directly; JV1 and JV3 are headerless and byte-ambiguous, so the
+    extension only selects which to try first -- a mislabelled JV1/JV3 is
+    corrected by the directory-score comparison."""
+    import os
+    with open(path, "rb") as f:
+        data = f.read()
+    ext = os.path.splitext(path)[1].lower()
+
+    def try_dmk():
+        if len(data) < 16:
+            return None
+        b0, b1 = data[0], data[1]
+        track_len = struct.unpack_from("<H", data, 2)[0]
+        if not (b0 in (0x00, 0xFF) and 30 <= b1 <= 96
+                and 0x80 < track_len <= 0x3FFF):
+            return None
+        try:
+            img = DMKImage(data, verbose)
+            return img if img.sectors else None
+        except Exception as e:
+            if verbose:
+                print(f"[detect] DMK parse failed: {e}", file=sys.stderr)
+            return None
+
+    # Extension routing. DMK has a real header, so when the name says DMK we
+    # verify and trust it. .JV1/.DSK only steer the JV tie-break order; the
+    # directory validator has final say either way.
+    if ext == ".dmk":
+        img = try_dmk()
+        if img is not None:
+            return img
+        if verbose:
+            print("[detect] .dmk header invalid; falling back to JV", file=sys.stderr)
+        return _build_jv(data, verbose) or JV1Image(data, verbose)
+
+    if ext in (".jv1", ".dsk", ".jv3"):
+        img = _build_jv(data, verbose)
+        if img is not None and _best_dir_score(img) > 0:
+            return img
+        # JV parse produced no readable directory: maybe it is really a DMK
+        # that was misnamed. Try the header path before giving up.
+        dmk = try_dmk()
+        if dmk is not None:
+            return dmk
+        return img or JV1Image(data, verbose)
+
+    # Unknown / missing extension: fall back to content order -- DMK header
+    # first (self-validating), then JV tie-break.
+    img = try_dmk()
+    if img is not None:
+        return img
+    return _build_jv(data, verbose) or JV1Image(data, verbose)
 
 
 # ---------------------------------------------------------------------------

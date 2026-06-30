@@ -49,6 +49,27 @@ authoritative source before trusting it on new disks.
 -----------------------------------------------------------------------------
 VERSION HISTORY
 -----------------------------------------------------------------------------
+1.5  (2026-06-30)  FIX: directory mis-read on builds with leading non-entry
+       sectors (esnd-15 / esnd-25, the "damaged directory pair").
+       - BUG: decode_directory concatenated ALL directory-track sectors into
+         one blob and strode 32 bytes from offset 0. When the entries do not
+         begin in sector 0 -- e.g. esnd-15/25 keep them in sectors 10-17, with
+         GAT/HIT/system data ahead -- the stride misaligned and GAT/HIT bytes
+         passed as phantom entries, so the disk looked damaged. Both disks are
+         in fact intact (confirmed against Jens Guenther's cw2dmk dumps and
+         NEWDOS DIR listings).
+       - FIX: parse each directory sector independently in 8 fixed 32-byte
+         slots (NEWDOS/80 & G-DOS FPDE/FXDE records never span a sector
+         boundary). A GAT/HIT/system sector simply yields no valid entries and
+         is skipped wherever it sits, so the leading-sector count no longer
+         matters.
+       - VALIDATED: esnd-15 -> 63 entries / 63 files extracted; esnd-25 -> 58
+         / 58; user-file sets match Jens's HRGPAS and PASCAL listings exactly
+         (RESCUE, PASCAL, CODEGEN ... ZEISATZ1; MAXWELL/SRC, CREF80, CRAM2).
+         esnd-23 regression unchanged (22 entries, self-test PASS).
+       - Note for the catalog: esnd-15 and esnd-25 are NOT a damaged pair; the
+         Disk_Catalog.md flag should be cleared on the next sweep.
+
 1.4  (2026-06-30)  FIX: JV1 mis-detected as JV3; extension-routed detection.
        - BUG: a headerless JV1 image (e.g. SIDEKICK.JV1, 200 KB = 80x10x256)
          was claimed by the JV3 parser, whose first ~8.7 KB of program bytes
@@ -307,7 +328,7 @@ KNOWN ISSUES / TODO
 -----------------------------------------------------------------------------
 """
 
-__version__ = "1.4"
+__version__ = "1.5"
 
 import argparse
 import os
@@ -701,27 +722,42 @@ class DirEntry:
 
 
 def decode_directory(img, track, side=0):
+    # NEWDOS/80 & G-DOS directory entries are 32-byte FPDE/FXDE records that
+    # NEVER span a sector boundary: each 256-byte directory sector holds
+    # exactly 8 slots at fixed offsets 0,32,...,224. The first sectors of the
+    # directory track are NOT entries -- sector 0 is the GAT, sector 1 the HIT,
+    # and (depending on the build) several following sectors carry boot/system
+    # data. The number of such leading non-entry sectors VARIES by disk
+    # (e.g. esnd-15/25 keep entries in sectors 10-17, not from sector 0).
+    #
+    # The old approach concatenated the whole track into one blob and strode
+    # 32 bytes from offset 0. That (a) let GAT/HIT/system bytes pass as phantom
+    # entries and (b) could misalign the stride, producing dozens of bogus
+    # files ("damaged directory"). Parsing each sector independently in 8 fixed
+    # slots removes both failure modes: a sector that is GAT/HIT/system simply
+    # yields no _valid_entry hits and is skipped, no matter where it sits.
     secs = img.track_sectors(track, side)
-    blob = b"".join(secs[s] for s in sorted(secs))
     entries = []
-    for off in range(0, len(blob) - ENTRY_SIZE, ENTRY_SIZE):
-        ent = blob[off:off + ENTRY_SIZE]
-        if not _valid_entry(ent):
-            continue
-        name = ent[5:13]
-        ext = ent[13:16]
-        # NEWDOS/80 dir entry layout (FPDE, approx):
-        #   byte0  attributes
-        #   byte2  EOF byte offset in last sector
-        #   byte3  logical record length
-        #   bytes5-12  filename (8)
-        #   bytes13-15 extension (3)
-        #   bytes22+   extent fields (granule allocation pairs)
-        eof_off = ent[2]
-        lrl = ent[3]
-        extents = _parse_extents(ent)
-        entries.append(DirEntry(name, ext, attr=ent[0], eof_offset=eof_off,
-                                lrl=lrl, extents=extents, raw=ent))
+    for s in sorted(secs):
+        sector = secs[s]
+        for slot in range(0, len(sector) - ENTRY_SIZE + 1, ENTRY_SIZE):
+            ent = sector[slot:slot + ENTRY_SIZE]
+            if len(ent) < ENTRY_SIZE or not _valid_entry(ent):
+                continue
+            name = ent[5:13]
+            ext = ent[13:16]
+            # NEWDOS/80 dir entry layout (FPDE, approx):
+            #   byte0  attributes
+            #   byte2  EOF byte offset in last sector
+            #   byte3  logical record length
+            #   bytes5-12  filename (8)
+            #   bytes13-15 extension (3)
+            #   bytes22+   extent fields (granule allocation pairs)
+            eof_off = ent[2]
+            lrl = ent[3]
+            extents = _parse_extents(ent)
+            entries.append(DirEntry(name, ext, attr=ent[0], eof_offset=eof_off,
+                                    lrl=lrl, extents=extents, raw=ent))
     return entries
 
 

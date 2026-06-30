@@ -6,6 +6,27 @@ disk-by-disk validation history also lives in the header of `trsextract.py`.
 
 ## trsextract.py
 
+### 1.5
+- Fix: directory mis-read on builds whose entries do not start in sector 0 of
+  the directory track. `decode_directory` concatenated every directory-track
+  sector into one blob and strode 32 bytes from offset 0; when GAT/HIT/system
+  data sits ahead of the entries (esnd-15 / esnd-25 keep them in sectors
+  10-17), the stride misaligned and GAT/HIT bytes passed as phantom entries —
+  the "damaged directory pair" in `Disk_Catalog.md`.
+- Now each directory sector is parsed independently in 8 fixed 32-byte slots
+  (NEWDOS/80 & G-DOS FPDE/FXDE records never span a sector boundary). A
+  GAT/HIT/system sector yields no valid entries and is skipped wherever it
+  sits, so the leading-sector count is irrelevant.
+- The two disks are intact, not damaged: confirmed against Jens Günther's
+  cw2dmk dumps (40 trk, 2 sides, 18 sec/trk DD + 5-sector SD track 0) and his
+  NEWDOS `DIR` listings. esnd-15 → 63 entries / 63 extracted (HRGPAS volume),
+  esnd-25 → 58 / 58 (PASCAL volume); user-file sets match his listings exactly.
+- Regression: esnd-23 unchanged (22 entries, self-test PASS); SIDEKICK.JV1
+  still → JV1.
+- Catalog note: clear the esnd-15 / esnd-25 "damaged directory" flag on the
+  next `generate-logs.sh` sweep.
+- thanks to [Jens Gunther](https://gitlab.com/jengun) hinting something is wrong
+
 ### 1.4
 - Fix: a headerless JV1 image was mis-detected as JV3. A 200 KB JV1 disk
   (`SIDEKICK.JV1`, 80×10×256) has no header, so its first ~8.7 KB of program

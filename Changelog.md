@@ -122,3 +122,26 @@ disk-by-disk validation history also lives in the header of `trsextract.py`.
 - Initial wrapper: drag-and-drop a `.dmk`/`.dsk`, directory table, Extract All
   with folder picker and log viewer. Read and extract only. Shells out to
   `python3 trsextract.py`.
+
+## Catalog tools (generate-logs.sh, catalog-logs.py)
+
+Batch companions to `trsextract.py` for cataloguing a whole disk-image
+collection in one pass. Read-only over the images (listing only, no `-o`).
+
+### 1.0
+- `generate-logs.sh [IMAGE_DIR] [LOG_DIR]` runs the `trsextract.py` listing
+  over every `.dmk`/`.dsk`/`.jv1`/`.jv3` under a directory tree and saves one
+  `<disk>.log` per image (full listing plus `-v` diagnostics). Locates
+  `trsextract.py` next to itself or in `$PWD`. Flags any disk whose log
+  contains `ERROR` (hard-disk volumes, damaged directories) without stopping.
+- `catalog-logs.py [LOG_DIR] > Disk_Catalog.md` merges the per-disk logs into a
+  single Markdown index: a summary table (format, geometry, file count,
+  distinctive-file count, notes) and a per-disk section with the full file
+  list. Standard system furniture (BOOT/SYS, DIR/SYS, SYS0–SYS21, common
+  utilities) is hidden from the **distinctive files** line so the content that
+  identifies each disk stands out. Disks are sorted naturally (esnd-2 before
+  esnd-10); error logs surface as flagged rows.
+- Output carries a self-documenting header (auto-generated notice, refresh
+  command, cross-reference to the hand-maintained `Disk_Inventory.md`).
+- First run swept 69 images: 66 listed cleanly, 3 flagged (GAMES.DSK as an HD
+  volume; esnd-15 / esnd-25 as a damaged directory pair).

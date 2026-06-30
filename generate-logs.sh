@@ -33,6 +33,10 @@
 # -----------------------------------------------------------------------------
 # VERSION HISTORY
 # -----------------------------------------------------------------------------
+# 1.1  (2026-06-30)  PRIVACY: write only the image basename into each log's
+#        "### source:" line, not the absolute host path, so committed logs (and
+#        the catalog built from them) do not leak the account name / directory
+#        layout.
 # 1.0  (2026-06-29)  First release. Recurses a directory tree for DMK/DSK/JV1/
 #        JV3 images, runs the trsextract.py listing (-v) on each, and saves one
 #        <diskstem>.log per image into LOG_DIR. Locates trsextract.py next to
@@ -67,7 +71,10 @@ while IFS= read -r -d '' img; do
     log="$LOG_DIR/$stem.log"
     {
         echo "### trsextract listing"
-        echo "### source: $img"
+        # Record only the filename, not the absolute path. Logs (and the
+        # Disk_Catalog.md built from them) may be committed to a public repo;
+        # the full path would expose the account name and directory layout.
+        echo "### source: $(basename "$img")"
         echo "### generated: $(date '+%Y-%m-%d %H:%M:%S')"
         echo
         "$PY" "$TRS" "$img" -v

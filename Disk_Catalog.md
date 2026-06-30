@@ -94,7 +94,7 @@ Standard system files (BOOT/SYS, DIR/SYS, SYS0–SYS21, common utilities) are hi
 
 ### ASYLUM
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/ASYLUM.DSK`
+`ASYLUM.DSK`
 
 - Format **JV3**, 255 tracks, 2 side(s), directory track 26 side 0
 
@@ -111,7 +111,7 @@ PRODUCTI/ONC · SYSTEMSA/LL
 
 ### BASIC-toolkit_80sssd_jv1
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/BASIC-toolkit_80sssd_jv1.DSK`
+`BASIC-toolkit_80sssd_jv1.DSK`
 
 - Format **JV1**, 80 tracks, 1 side(s), directory track 17
 
@@ -128,7 +128,7 @@ BOOT/SYS · ZXCD48/CMD · ZXCDM48/CMD · GRBASIC/CMD · BITDEMO/BAS · NUMBCONV/
 
 ### cpmutil
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/CPM/cpmutil.dsk`
+`cpmutil.dsk`
 
 - Format **JV3**, 40 tracks, 1 side(s), directory track 31
 
@@ -145,7 +145,7 @@ CLOSE · PORT · COMPLETE · PROMPT · RSE1 · RSE8 · SUB · IXFD · SUB · IXF
 
 ### disk124642
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/disk124642.dmk`
+`disk124642.dmk`
 
 - Format **DMK**, 40 tracks, 1 side(s), directory track 17
 
@@ -162,7 +162,7 @@ BASIC/CMD · ASYLUM1A/CMD · ASYLUM1C/CMD · ASYLUM1D/CMD · GRON/CMD · GCLS/CM
 
 ### esnd-01
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-01.dmk`
+`esnd-01.dmk`
 
 - Format **DMK**, 41 tracks, 2 side(s), directory track 5 side 1  _(track count suggests an imaging over-read)_
 
@@ -179,7 +179,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · RESCUE/CMD · BASIC/CMD · CREATE/HRG · DI
 
 ### esnd-02
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-02.dmk`
+`esnd-02.dmk`
 
 - Format **DMK**, 40 tracks, 1 side(s), directory track 17
 
@@ -196,7 +196,7 @@ GDOS/SYS · SYS6/SYS · SYS14/SYS · SYS22/SYS · BASIC/CMD · INHALT/SYS · SUP
 
 ### esnd-03
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-03.dmk`
+`esnd-03.dmk`
 
 - Format **DMK**, 40 tracks, 1 side(s), directory track 17
 
@@ -213,7 +213,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · BASIC/CMD · BUGOUT/CMD · DIR/SYS · SYS7/
 
 ### esnd-04
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-04.dmk`
+`esnd-04.dmk`
 
 - Format **DMK**, 41 tracks, 2 side(s), directory track 5 side 1  _(track count suggests an imaging over-read)_
 
@@ -230,7 +230,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · SYS22/SYS · BASIC/CMD · BASIC80/CMD · DI
 
 ### esnd-05
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-05.dmk`
+`esnd-05.dmk`
 
 - Format **DMK**, 41 tracks, 2 side(s), directory track 5 side 1  _(track count suggests an imaging over-read)_
 
@@ -247,7 +247,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · SYS22/SYS · BAS3/CMD · BASIC/CMD · BOOTK
 
 ### esnd-06
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-06.dmk`
+`esnd-06.dmk`
 
 - Format **DMK**, 43 tracks, 2 side(s), directory track 5 side 1
 
@@ -264,7 +264,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · RESCUE/CMD · BASIC/CMD · CREATE/HRG · HX
 
 ### esnd-07
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-07.dmk`
+`esnd-07.dmk`
 
 - Format **DMK**, 41 tracks, 2 side(s), directory track 15 side 0  _(track count suggests an imaging over-read)_
 
@@ -281,7 +281,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · SYS22/SYS · BIOS3/SPR · BOOT/MAC · ALTOS
 
 ### esnd-08
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-08.dmk`
+`esnd-08.dmk`
 
 - Format **DMK**, 41 tracks, 2 side(s), directory track 5 side 1  _(track count suggests an imaging over-read)_
 
@@ -298,7 +298,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · SYS22/SYS · DIR/SYS · SYS7/SYS · SYS15/S
 
 ### esnd-09
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-09.dmk`
+`esnd-09.dmk`
 
 - Format **DMK**, 41 tracks, 2 side(s), directory track 15 side 0  _(track count suggests an imaging over-read)_
 
@@ -315,7 +315,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · SYS22/SYS · AC/CMD · ASM/CMD · DDE/CMD �
 
 ### esnd-10
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-10.dmk`
+`esnd-10.dmk`
 
 - Format **DMK**, 81 tracks, 2 side(s), directory track 11 side 0  _(track count suggests an imaging over-read)_
 
@@ -332,7 +332,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · SYS22/SYS · AC/JCL · ACCEL3/BAS · ACCEL3
 
 ### esnd-11
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-11.dmk`
+`esnd-11.dmk`
 
 - Format **DMK**, 41 tracks, 1 side(s), directory track 21  _(track count suggests an imaging over-read)_
 
@@ -349,7 +349,7 @@ GDOS/SYS · COLOFFP/CMD · INHALT/SYS · PROGMOD/BAS · SPLOT/CMD · COLMEN/CMD 
 
 ### esnd-12
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-12.dmk`
+`esnd-12.dmk`
 
 - Format **DMK**, 41 tracks, 2 side(s), directory track 15 side 0  _(track count suggests an imaging over-read)_
 
@@ -366,7 +366,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · SYS22/SYS · BASIC/CMD · GEDAT1 · PMODULM
 
 ### esnd-13
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-13.dmk`
+`esnd-13.dmk`
 
 - Format **DMK**, 41 tracks, 2 side(s), directory track 5 side 1  _(track count suggests an imaging over-read)_
 
@@ -383,7 +383,7 @@ GDOS/SYS · ZOOM/DAT · HARD/CIM · INHALT/SYS · SPACE/BLD · PMODULU · TITEL/
 
 ### esnd-13a
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-13a.dmk`
+`esnd-13a.dmk`
 
 - Format **DMK**, 41 tracks, 2 side(s), directory track 5 side 1  _(track count suggests an imaging over-read)_
 
@@ -400,7 +400,7 @@ GDOS/SYS · ZOOM/DAT · HARD/CIM · INHALT/SYS · SPACE/BLD · PMODULU · TITEL/
 
 ### esnd-13b
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-13b.dmk`
+`esnd-13b.dmk`
 
 - Format **DMK**, 41 tracks, 2 side(s), directory track 5 side 1  _(track count suggests an imaging over-read)_
 
@@ -417,7 +417,7 @@ GDOS/SYS · ZOOM/DAT · HARD/CIM · INHALT/SYS · SPACE/BLD · PMODULU · TITEL/
 
 ### esnd-14
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-14.dmk`
+`esnd-14.dmk`
 
 - Format **DMK**, 41 tracks, 2 side(s), directory track 15 side 0  _(track count suggests an imaging over-read)_
 
@@ -434,7 +434,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · SYS22/SYS · BASIC/CMD · ABSEND/DAT · PMO
 
 ### esnd-15
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-15.dmk`
+`esnd-15.dmk`
 
 - Format **DMK**, 41 tracks, 2 side(s), directory track 5 side 1  _(track count suggests an imaging over-read)_
 
@@ -451,7 +451,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · RESCUE/CMD · PASCAL/CMD · CODEGEN/CMD · 
 
 ### esnd-16
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-16.dmk`
+`esnd-16.dmk`
 
 - Format **DMK**, 40 tracks, 1 side(s), directory track 17
 
@@ -468,7 +468,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · HELP · BASIC/CMD · EDIT1/EX · SCRIPT · 
 
 ### esnd-17
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-17.dmk`
+`esnd-17.dmk`
 
 - Format **DMK**, 40 tracks, 1 side(s), directory track 17
 
@@ -485,7 +485,7 @@ GDOS/SYS · SYS6/SYS · SYS14/SYS · SYS22/SYS · BASIC/CMD · INDEXFIL · RECHN
 
 ### esnd-18
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-18.dmk`
+`esnd-18.dmk`
 
 - Format **DMK**, 41 tracks, 2 side(s), directory track 5 side 1  _(track count suggests an imaging over-read)_
 
@@ -502,7 +502,7 @@ BOOT/SYS · DIR/SYS · SYS0/SYS · SYS8/SYS · SYS1/SYS · L80/CMD · STARTREK/B
 
 ### esnd-19
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-19.dmk`
+`esnd-19.dmk`
 
 - Format **DMK**, 41 tracks, 2 side(s), directory track 5 side 1  _(track count suggests an imaging over-read)_
 
@@ -519,7 +519,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · SYS22/SYS · ASCIICHR/HRG · BAS3/CMD · BA
 
 ### esnd-20
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-20.dmk`
+`esnd-20.dmk`
 
 - Format **DMK**, 35 tracks, 1 side(s), directory track 15
 
@@ -536,7 +536,7 @@ GELEGENH/EIT · AUSLAEND/ISC
 
 ### esnd-20a
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-20a.dmk`
+`esnd-20a.dmk`
 
 - Format **DMK**, 41 tracks, 2 side(s), directory track 5 side 1  _(track count suggests an imaging over-read)_
 
@@ -553,7 +553,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · SYS22/SYS · PHIPLOT/BAS · DIR/SYS · SYS7
 
 ### esnd-21
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-21.dmk`
+`esnd-21.dmk`
 
 - Format **DMK**, 41 tracks, 2 side(s), directory track 5 side 1  _(track count suggests an imaging over-read)_
 
@@ -570,7 +570,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · BASIC/CMD · DIR/SYS · SYS7/SYS · SYS15/S
 
 ### esnd-23
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-23.dmk`
+`esnd-23.dmk`
 
 - Format **DMK**, 81 tracks, 2 side(s), directory track 15 side 0  _(track count suggests an imaging over-read)_
 
@@ -587,7 +587,7 @@ BOOT/SYS · WC/BAS · BILD/OBJ · DIR/SYS · WBEDIT/TXT · WC/TXT · FREMEDIT/BA
 
 ### esnd-24
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-24.dmk`
+`esnd-24.dmk`
 
 - Format **DMK**, 41 tracks, 2 side(s), directory track 5 side 1  _(track count suggests an imaging over-read)_
 
@@ -604,7 +604,7 @@ BOOT/SYS · T83/PCL · T122/PCL · T41/PCL · DIR/SYS · M0069A01/PCL · T41/OBJ
 
 ### esnd-25
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-25.dmk`
+`esnd-25.dmk`
 
 - Format **DMK**, 41 tracks, 2 side(s), directory track 5 side 1  _(track count suggests an imaging over-read)_
 
@@ -621,7 +621,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · RESCUE/CMD · PASCAL/CMD · CODEGEN/CMD · 
 
 ### esnd-26
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-26.dmk`
+`esnd-26.dmk`
 
 - Format **DMK**, 41 tracks, 2 side(s), directory track 5 side 1  _(track count suggests an imaging over-read)_
 
@@ -638,7 +638,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · OUT · DIR/SYS · SYS7/SYS · SYS15/SYS · 
 
 ### esnd-27
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-27.dmk`
+`esnd-27.dmk`
 
 - Format **DMK**, 41 tracks, 2 side(s), directory track 5 side 1  _(track count suggests an imaging over-read)_
 
@@ -655,7 +655,7 @@ BOOT/SYS · RESCUE/CMD · ZXCDM48/CMD · DISKSORT/CMD · DISKVERZ/DAT · KARTEI/
 
 ### esnd-28
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-28.dmk`
+`esnd-28.dmk`
 
 - Format **DMK**, 40 tracks, 1 side(s), directory track 17
 
@@ -672,7 +672,7 @@ BOOT/SYS · DIT/MAC · SYS14/SYS · DIR/SYS · APFELMV6/LST · APFELMV6/REL · S
 
 ### esnd-29
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-29.dmk`
+`esnd-29.dmk`
 
 - Format **DMK**, 41 tracks, 2 side(s), directory track 5 side 1  _(track count suggests an imaging over-read)_
 
@@ -689,7 +689,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · RESCUE/CMD · BASIC/CMD · BASCREAT/CMD · 
 
 ### esnd-30
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-30.dmk`
+`esnd-30.dmk`
 
 - Format **DMK**, 40 tracks, 1 side(s), directory track 17
 
@@ -706,7 +706,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · BASTEXT · BASIC/CMD · WRDCHECK · GAUSS/B
 
 ### esnd-31
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-31.dmk`
+`esnd-31.dmk`
 
 - Format **DMK**, 40 tracks, 2 side(s), directory track 8 side 1
 
@@ -723,7 +723,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · L1P1 · BASIC/CMD · DIS/CMD · L2P5 · DIR
 
 ### esnd-32
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-32.dmk`
+`esnd-32.dmk`
 
 - Format **DMK**, 41 tracks, 1 side(s), directory track 17  _(track count suggests an imaging over-read)_
 
@@ -740,7 +740,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · BASIC/CMD · UMSATZ/DAT · DIR/SYS · SYS7/
 
 ### esnd-33
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-33.dmk`
+`esnd-33.dmk`
 
 - Format **DMK**, 40 tracks, 2 side(s), directory track 8 side 1
 
@@ -757,7 +757,7 @@ BOOT/SYS · ADV/BAS · ADVGEN/BAS · DIR/SYS · TEST · EST87/BAS
 
 ### esnd-34
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-34.dmk`
+`esnd-34.dmk`
 
 - Format **DMK**, 40 tracks, 1 side(s), directory track 17
 
@@ -774,7 +774,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · DRIVER/CMD · BASIC/CMD · DIR/SYS · SYS7/
 
 ### esnd-35
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-35.dmk`
+`esnd-35.dmk`
 
 - Format **DMK**, 81 tracks, 2 side(s), directory track 15 side 0  _(track count suggests an imaging over-read)_
 
@@ -791,7 +791,7 @@ BOOT/SYS · DRIVER/CMD · BSP3D/BAS · META/DRV · MFI/REL · MICROTAB/L2X · DI
 
 ### esnd-36
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-36.dmk`
+`esnd-36.dmk`
 
 - Format **DMK**, 40 tracks, 1 side(s), directory track 17
 
@@ -808,7 +808,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · CREATE/HRG · BASIC/CMD · DIR/SYS · SYS7/
 
 ### esnd-37
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-37.dmk`
+`esnd-37.dmk`
 
 - Format **DMK**, 40 tracks, 1 side(s), directory track 17
 
@@ -825,7 +825,7 @@ GDOS/SYS · SYS6/SYS · SYS14/SYS · PDOT1/CMD · HELP · INHALT/SYS · SYS7/SYS
 
 ### esnd-38
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-38.dmk`
+`esnd-38.dmk`
 
 - Format **DMK**, 40 tracks, 1 side(s), directory track 17
 
@@ -842,7 +842,7 @@ BOOT/SYS · FRACTV2/BAS · SYS14/SYS · BASIC/CMD · DIR/SYS · TORWART/BAS · S
 
 ### esnd-39
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-39.dmk`
+`esnd-39.dmk`
 
 - Format **DMK**, 40 tracks, 1 side(s), directory track 17
 
@@ -859,7 +859,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · BASIC/CMD · PENTA1/HRG · PENTA2/HRG · BA
 
 ### esnd-40
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-40.dmk`
+`esnd-40.dmk`
 
 - Format **DMK**, 40 tracks, 1 side(s), directory track 17
 
@@ -876,7 +876,7 @@ BOOT/SYS · DTA/CMD · SYS14/SYS · BASIC/CMD · DIR/SYS · SYS7/SYS · SYS15/SY
 
 ### esnd-41
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-41.dmk`
+`esnd-41.dmk`
 
 - Format **DMK**, 41 tracks, 2 side(s), directory track 5 side 1  _(track count suggests an imaging over-read)_
 
@@ -893,7 +893,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · SYS22/SYS · CPM22X/PDR · APPLEII/APC · D
 
 ### esnd-42
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-42.dmk`
+`esnd-42.dmk`
 
 - Format **DMK**, 40 tracks, 1 side(s), directory track 17
 
@@ -910,7 +910,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · SYMBOL/CIM · BASIC/CMD · DIR/SYS · SYS7/
 
 ### esnd-43
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/esnd-43.dmk`
+`esnd-43.dmk`
 
 - Format **DMK**, 41 tracks, 2 side(s), directory track 5 side 1  _(track count suggests an imaging over-read)_
 
@@ -927,7 +927,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · SYS22/SYS · AGBEL87/VC · AGBELAST/VC · E
 
 ### g3sgdos1
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/g3sgdos1.dmk`
+`g3sgdos1.dmk`
 
 - Format **DMK**, 81 tracks, 2 side(s), directory track 41 side 0  _(track count suggests an imaging over-read)_
 
@@ -944,7 +944,7 @@ GDOS/SYS · SYS6/SYS · SYS14/SYS · SYS22/SYS · AC/CMD · ALARM/BAS · APL80/C
 
 ### g3sgdos2
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/g3sgdos2.dmk`
+`g3sgdos2.dmk`
 
 - Format **DMK**, 81 tracks, 2 side(s), directory track 41 side 0  _(track count suggests an imaging over-read)_
 
@@ -961,14 +961,14 @@ GDOS/SYS · SYS6/SYS · SYS14/SYS · SYS22/SYS · AC/CMD · ALARM/BAS · APL80/C
 
 ### GAMES
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/GAMES.DSK`
+`GAMES.DSK`
 
 > ⚠️ **ERROR: no directory found by floppy-track scanning, and this image (1000 KB) is larger than any floppy (720 KB max).**
 
 
 ### GDOS-PDRAW
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/GDOS-PDRAW.dmk`
+`GDOS-PDRAW.dmk`
 
 - Format **DMK**, 40 tracks, 1 side(s), directory track 17
 
@@ -985,7 +985,7 @@ GDOS/SYS · SYS6/SYS · SYS14/SYS · SYS22/SYS · BASIC/CMD · INHALT/SYS · SUP
 
 ### GDOS
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/GDOS.DSK`
+`GDOS.DSK`
 
 - Format **JV1**, 102 tracks, 1 side(s), directory track 53
 
@@ -1002,7 +1002,7 @@ GDOS/SYS · SYS6/SYS · SYS14/SYS · SYS22/SYS · ASM/CMD · BASIC/CMD · CAT/CM
 
 ### HDOSNEWDOS80
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/HDOSNEWDOS80.dmk`
+`HDOSNEWDOS80.dmk`
 
 - Format **DMK**, 40 tracks, 1 side(s), directory track 17
 
@@ -1019,7 +1019,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · BASIC/CMD · BUGOUT/CMD · DIR/SYS · SYS7/
 
 ### ND80-HD1
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/ND80-HD1.DSK`
+`ND80-HD1.DSK`
 
 - Format **JV3**, 255 tracks, 2 side(s), directory track 3 side 1
 
@@ -1036,7 +1036,7 @@ SPECIFIC/ATI · TIALIZAT/ION
 
 ### nd86gu1
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/nd86gu1.dmk`
+`nd86gu1.dmk`
 
 - Format **DMK**, 40 tracks, 1 side(s), directory track 9
 
@@ -1053,7 +1053,7 @@ BOOT/SYS · CAPTURE/BAS · CAPTURE/CMD · DIR/SYS · LOCATE/CMD · DOSFILE/PDF �
 
 ### nd86gu2
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/nd86gu2.dmk`
+`nd86gu2.dmk`
 
 - Format **DMK**, 40 tracks, 1 side(s), directory track 9
 
@@ -1070,7 +1070,7 @@ BOOT/SYS · DIR/SYS · MANUAL01 · MANUAL02 · MANUAL03 · MANUAL04 · MANUAL05 
 
 ### nd86gu3
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/nd86gu3.dmk`
+`nd86gu3.dmk`
 
 - Format **DMK**, 40 tracks, 1 side(s), directory track 9
 
@@ -1087,7 +1087,7 @@ INC · VAR · BOOT/SYS · MANUAL19 · MANUAL20 · MANUAL21 · MANUAL33 · MANUAL
 
 ### nd86gu4
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/nd86gu4.dmk`
+`nd86gu4.dmk`
 
 - Format **DMK**, 40 tracks, 1 side(s), directory track 9
 
@@ -1104,7 +1104,7 @@ BOOT/SYS · BROTHER1/ASM · BROTHER1/DVR · BROTHER2/ASM · BROTHER2/DVR · PRIN
 
 ### nd86hd1
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/nd86hd1.dmk`
+`nd86hd1.dmk`
 
 - Format **DMK**, 40 tracks, 1 side(s), directory track 9
 
@@ -1121,7 +1121,7 @@ BOOT/SYS · DTWRITER/HLP · DIR/SYS · HELPDFLT/BAS · HELPND86/BAS · HELPDISK/
 
 ### nd86hd2
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/nd86hd2.dmk`
+`nd86hd2.dmk`
 
 - Format **DMK**, 40 tracks, 1 side(s), directory track 16
 
@@ -1138,7 +1138,7 @@ NULLS/DEF · HAND/DEF · PRINTER/TYP · L
 
 ### nd86whlp
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/nd86whlp.dmk`
+`nd86whlp.dmk`
 
 - Format **DMK**, 40 tracks, 1 side(s), directory track 9
 
@@ -1155,7 +1155,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · SYS22/SYS · NEWDATE/CMD · OLDIR/CMD · ZA
 
 ### NEWDOS80-80Track
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/NEWDOS80-80Track.DSK`
+`NEWDOS80-80Track.DSK`
 
 - Format **JV1**, 405 tracks, 1 side(s), directory track 19
 
@@ -1172,7 +1172,7 @@ UNCTION/TER · ISKETTE/FOR · RECTORY/SEC
 
 ### NEWDOS80-ext-lib
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/NEWDOS80-ext-lib.dmk`
+`NEWDOS80-ext-lib.dmk`
 
 - Format **DMK**, 41 tracks, 2 side(s), directory track 5 side 1  _(track count suggests an imaging over-read)_
 
@@ -1189,7 +1189,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · SYS22/SYS · BASIC/CMD · BASIC80/CMD · DI
 
 ### NEWDOS80
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/NEWDOS80.dmk`
+`NEWDOS80.dmk`
 
 - Format **DMK**, 41 tracks, 2 side(s), directory track 5 side 1  _(track count suggests an imaging over-read)_
 
@@ -1206,7 +1206,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · RESCUE/CMD · BASIC/CMD · CREATE/HRG · DI
 
 ### NEWDOS80PLUS10
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/NEWDOS80PLUS10.dmk`
+`NEWDOS80PLUS10.dmk`
 
 - Format **DMK**, 41 tracks, 2 side(s), directory track 5 side 1  _(track count suggests an imaging over-read)_
 
@@ -1223,7 +1223,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · SYS22/SYS · DIR/SYS · SYS7/SYS · SYS15/S
 
 ### NWP22MST
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/NWP22MST.DSK`
+`NWP22MST.DSK`
 
 - Format **JV3**, 40 tracks, 1 side(s), directory track 17
 
@@ -1240,7 +1240,7 @@ BOOT/SYS · SYS6/SYS · FORMAT/CMD · DIRCHECK · DISKDUMP/BAS · BASIC/CMD · L
 
 ### sargon
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/sargon.DSK`
+`sargon.DSK`
 
 - Format **DMK**, 81 tracks, 2 side(s), directory track 15 side 0  _(track count suggests an imaging over-read)_
 
@@ -1257,7 +1257,7 @@ BOOT/SYS · DIR/SYS · SARGON0/CMD · SARGON1/CMD
 
 ### Sfinks4
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/Sfinks4.dsk`
+`Sfinks4.dsk`
 
 - Format **JV3**, 41 tracks, 2 side(s), directory track 10 side 0  _(track count suggests an imaging over-read)_
 
@@ -1274,7 +1274,7 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · BASIC/CMD · SFINKS/DAT · SFINKS/JCL · SF
 
 ### Sicherungskopie
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/Sicherungskopie.DSK`
+`Sicherungskopie.DSK`
 
 - Format **JV3**, 255 tracks, 2 side(s), directory track 165 side 1
 
@@ -1291,7 +1291,7 @@ DESTINAT/ION
 
 ### SIDEKICK
 
-`/Users/egbert/Documents/github/TRS80 Disks/SIDEKICK.JV1`
+`SIDEKICK.JV1`
 
 - Format **JV1**, 80 tracks, 1 side(s), directory track 17
 
@@ -1308,14 +1308,14 @@ BOOT/SYS · SYS6/SYS · SYS14/SYS · READ/CMD · BASIC/CMD · UNKILL/CMD · DIR/
 
 ### test1
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/test1.DSK`
+`test1.DSK`
 
 > ⚠️ **ERROR: no sectors decoded; unrecognised or damaged image.**
 
 
 ### test2
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/test2.DSK`
+`test2.DSK`
 
 - Format **JV1**, 405 tracks, 1 side(s), directory track 19
 
@@ -1332,7 +1332,7 @@ UNCTION/TER · ISKETTE/FOR · RECTORY/SEC
 
 ### test
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/test.DSK`
+`test.DSK`
 
 - Format **JV1**, 405 tracks, 1 side(s), directory track 35
 
@@ -1349,7 +1349,7 @@ DF0MPIRF/WIT · SBEINOVC/NGL
 
 ### utility
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/NewDos/utility.dsk`
+`utility.dsk`
 
 - Format **JV3**, 80 tracks, 1 side(s), directory track 17
 
@@ -1366,7 +1366,7 @@ BOOT/SYS · EXPORT/CMD · SETTIME/CCC · CD/CCC · MOUNT/CMD · TRUEDAM6/CMD · 
 
 ### weihkamp-sav
 
-`/Users/egbert/Documents/github/TRS80 Disks/diskimages/weihkamp-sav.dmk`
+`weihkamp-sav.dmk`
 
 - Format **DMK**, 81 tracks, 2 side(s), directory track 15 side 0  _(track count suggests an imaging over-read)_
 

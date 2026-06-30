@@ -167,6 +167,17 @@ disk-by-disk validation history also lives in the header of `trsextract.py`.
 Batch companions to `trsextract.py` for cataloguing a whole disk-image
 collection in one pass. Read-only over the images (listing only, no `-o`).
 
+### 1.2 (catalog-logs.py) / 1.1 (generate-logs.sh)
+- Privacy: the per-disk logs and `Disk_Catalog.md` recorded each image's full
+  absolute path (e.g. `/Users/<name>/Documents/github/.../esnd-01.dmk`),
+  exposing the account name and local directory layout in a public repo.
+  `generate-logs.sh` now writes only the image basename into each log's
+  `### source:` line, and `catalog-logs.py` emits only the basename in the
+  catalog — sanitising at build time, so rebuilding from existing logs cleans
+  the markdown without re-scanning. Note: existing committed `.log` files still
+  contain old paths; regenerate them (or `.gitignore` the `logs/` folder, as
+  they are derived artifacts), and remember git history retains prior versions.
+
 ### 1.1 (catalog-logs.py)
 - Fix: `catalog-logs.py` flagged any disk whose log contained the substring
   "ERROR" as damaged, blanking its row. A disk simply listing a file named

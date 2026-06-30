@@ -38,6 +38,11 @@
 # -----------------------------------------------------------------------------
 # VERSION HISTORY
 # -----------------------------------------------------------------------------
+# 1.2  (2026-06-30)  PRIVACY: emit only the image basename in Disk_Catalog.md,
+#        never the absolute host path. The catalog is committed to a public
+#        repo; the old `### source:` passthrough exposed the account name and
+#        local directory tree (/Users/<name>/.../esnd-01.dmk). Sanitised at
+#        build time, so rebuilding from existing logs cleans the markdown.
 # 1.1  (2026-06-30)  FIX: false "damaged" flag on disks containing ERRORS/DAT.
 #        Error detection matched the bare substring "ERROR" anywhere in a log,
 #        so a disk whose directory simply lists a file named ERRORS/DAT
@@ -58,7 +63,7 @@
 #        3 flagged.
 # -----------------------------------------------------------------------------
 
-__version__ = "1.1"
+__version__ = "1.2"
 
 import os
 import re
@@ -206,7 +211,11 @@ def render(infos):
     for i in infos:
         out.append(f"### {i['disk']}\n")
         if i["source"]:
-            out.append(f"`{i['source']}`\n")
+            # Show only the image filename, never the absolute host path.
+            # Disk_Catalog.md is committed to a public repo; emitting the full
+            # path (e.g. /Users/<name>/Documents/github/.../esnd-01.dmk) would
+            # expose the user's account name and local directory structure.
+            out.append(f"`{os.path.basename(i['source'])}`\n")
         if i["error"]:
             out.append(f"> ⚠️ **{i['error']}**\n")
             out.append("")

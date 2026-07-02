@@ -1,4 +1,4 @@
-// TRS80Extract 1.2 - a SwiftUI front end for trsextract.py
+// TRS80Extract 1.3 - a SwiftUI front end for trsextract.py
 // Copyright (C) 2026 Egbert Schroeer
 //
 // This program is free software: you can redistribute it and/or modify it
@@ -15,6 +15,14 @@
 //   - "Write a file to a disk" choose/drop a target disk, then drop the file
 //                             to add; writes via --write-file / --write-basic
 //                             into a COPY (<target>.out.dsk), never the original.
+//
+// 1.3 adds a second tab, "Catalog": search the whole collection ("which disk
+// has FILE X?"). It reads catalog.json, the machine output of
+//   python3 catalog-logs.py ./logs --json > catalog.json
+// and filters it live in memory - no subprocess per keystroke. Empty search
+// shows a disk browser (disk list left, file table right). The Python side
+// stays the single source of truth for log parsing and the standard-file
+// filter rules; this tab only displays what it is given.
 
 import SwiftUI
 import AppKit
@@ -200,6 +208,295 @@ struct TrsRunner {
                                   eofOff: eof, extents: extents))
         }
         return ListResult(header: header, files: files, rawError: err)
+    }
+}
+
+// MARK: - Catalog (search across the whole collection)
+
+/// Codable mirror of `catalog-logs.py --json` output.
+struct CatalogRoot: Codable {
+    let generator: String
+    let disks: [CatalogDisk]
+}
+
+struct CatalogDisk: Codable, Identifiable, Hashable {
+    var id: String { disk }
+    let disk: String
+    let source: String
+    let error: String?
+    let format: String
+    let tracks: String
+    let sides: String
+    let dirtrack: String
+    let note: String
+    let files: [CatalogFile]
+}
+
+struct CatalogFile: Codable, Hashable {
+    let name: String
+    let ext: String
+    let attr: String
+    let standard: Bool           // is_standard() verdict from the Python side
+    var full: String { ext.isEmpty ? name : "\(name)/\(ext)" }
+}
+
+/// One row in the results / detail table.
+struct CatalogRow: Identifiable {
+    let id = UUID()
+    let file: String
+    let disk: String
+    let attr: String
+    let standard: String         // "" or "std", for a visible column
+}
+
+final class CatalogStore: ObservableObject {
+    @Published var disks: [CatalogDisk] = []
+    @Published var loadedFrom: String = ""
+    @Published var loadError: String = ""
+
+    /// Locate catalog.json: last-used path, app bundle Resources, next to the
+    /// executable, current directory. Same resolver idea as findScript().
+    static func defaultPath(stored: String) -> String? {
+        let fm = FileManager.default
+        if !stored.isEmpty, fm.fileExists(atPath: stored) { return stored }
+        if let r = Bundle.main.resourcePath {
+            let p = (r as NSString).appendingPathComponent("catalog.json")
+            if fm.fileExists(atPath: p) { return p }
+        }
+        if let d = (Bundle.main.executablePath as NSString?)?
+            .deletingLastPathComponent {
+            let p = (d as NSString).appendingPathComponent("catalog.json")
+            if fm.fileExists(atPath: p) { return p }
+        }
+        let p = (fm.currentDirectoryPath as NSString)
+            .appendingPathComponent("catalog.json")
+        if fm.fileExists(atPath: p) { return p }
+        return nil
+    }
+
+    func load(path: String) {
+        do {
+            let data = try Data(contentsOf: URL(fileURLWithPath: path))
+            let root = try JSONDecoder().decode(CatalogRoot.self, from: data)
+            disks = root.disks
+            loadedFrom = path
+            loadError = ""
+        } catch {
+            loadError = "Could not read catalog: \(error.localizedDescription)"
+        }
+    }
+}
+
+struct CatalogSearchView: View {
+    @AppStorage("catalogPath") private var catalogPath: String = ""
+    @StateObject private var store = CatalogStore()
+    @State private var query = ""
+    @State private var showStandard = false
+    @State private var selectedDisk: CatalogDisk.ID? = nil
+
+    var body: some View {
+        VStack(spacing: 0) {
+            searchBar
+            Divider()
+            if store.disks.isEmpty {
+                emptyState
+            } else if !trimmedQuery.isEmpty {
+                resultsTable
+            } else {
+                browser
+            }
+            Divider()
+            catalogFooter
+        }
+        .frame(minWidth: 720, minHeight: 480)
+        .onAppear {
+            if store.disks.isEmpty,
+               let p = CatalogStore.defaultPath(stored: catalogPath) {
+                store.load(path: p)
+                catalogPath = store.loadedFrom
+            }
+        }
+    }
+
+    private var trimmedQuery: String {
+        query.trimmingCharacters(in: .whitespaces)
+    }
+
+    // MARK: search
+
+    /// All matching files across all readable disks. Case-insensitive
+    /// substring on NAME/EXT - same semantics as `catalog-logs.py --find`.
+    private var hits: [CatalogRow] {
+        let q = trimmedQuery.lowercased()
+        var out: [CatalogRow] = []
+        for d in store.disks where d.error == nil {
+            for f in d.files {
+                if !showStandard && f.standard { continue }
+                if f.full.lowercased().contains(q) {
+                    out.append(CatalogRow(file: f.full, disk: d.disk,
+                                          attr: f.attr,
+                                          standard: f.standard ? "std" : ""))
+                }
+            }
+        }
+        return out.sorted { ($0.file, $0.disk) < ($1.file, $1.disk) }
+    }
+
+    private var searchBar: some View {
+        HStack {
+            Image(systemName: "magnifyingglass").foregroundColor(.secondary)
+            TextField("Search files across all disks  (e.g. PACMAN or /BAS)",
+                      text: $query)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(.body, design: .monospaced))
+            Toggle("Standard system files", isOn: $showStandard)
+                .toggleStyle(.checkbox)
+                .help("Include BOOT/SYS, DIR/SYS, SYS0…SYS21 and common "
+                    + "utilities in search results and disk views.")
+        }
+        .padding()
+    }
+
+    private var resultsTable: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Table(hits) {
+                TableColumn("File", value: \.file)
+                TableColumn("Disk", value: \.disk)
+                TableColumn("Attr", value: \.attr)
+                TableColumn("", value: \.standard)
+            }
+            .font(.system(.body, design: .monospaced))
+            Text("\(hits.count) match(es)"
+                 + (showStandard ? "" : " — standard system files hidden"))
+                .font(.caption).foregroundColor(.secondary)
+                .padding(.horizontal).padding(.vertical, 4)
+        }
+    }
+
+    // MARK: browser (empty search): disks left, files right
+
+    private var browser: some View {
+        HSplitView {
+            List(selection: $selectedDisk) {
+                ForEach(store.disks) { d in
+                    HStack {
+                        Text(d.disk)
+                            .font(.system(.body, design: .monospaced))
+                        Spacer()
+                        if d.error != nil {
+                            Image(systemName: "exclamationmark.triangle")
+                                .foregroundColor(.orange)
+                        } else {
+                            Text("\(d.files.count)")
+                                .font(.caption).foregroundColor(.secondary)
+                        }
+                    }
+                    .tag(d.id)
+                }
+            }
+            .frame(minWidth: 180, idealWidth: 220)
+            diskDetail
+        }
+    }
+
+    @ViewBuilder
+    private var diskDetail: some View {
+        if let d = store.disks.first(where: { $0.id == selectedDisk }) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(d.error == nil
+                     ? "\(d.disk) — \(d.format), \(d.tracks) trk, "
+                       + "\(d.sides) side(s), dir \(d.dirtrack)"
+                       + (d.note.isEmpty ? "" : "  (\(d.note))")
+                     : d.disk)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal).padding(.top, 6)
+                if let err = d.error {
+                    Text("⚠️ \(err)")
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundColor(.orange)
+                        .padding()
+                    Spacer()
+                } else {
+                    Table(diskRows(d)) {
+                        TableColumn("File", value: \.file)
+                        TableColumn("Attr", value: \.attr)
+                        TableColumn("", value: \.standard)
+                    }
+                    .font(.system(.body, design: .monospaced))
+                }
+            }
+        } else {
+            VStack {
+                Spacer()
+                Text("Select a disk — or type above to search all of them.")
+                    .foregroundColor(.secondary)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    private func diskRows(_ d: CatalogDisk) -> [CatalogRow] {
+        d.files
+            .filter { showStandard || !$0.standard }
+            .map { CatalogRow(file: $0.full, disk: d.disk, attr: $0.attr,
+                              standard: $0.standard ? "std" : "") }
+    }
+
+    // MARK: empty state / footer
+
+    private var emptyState: some View {
+        VStack(spacing: 10) {
+            Spacer()
+            Image(systemName: "books.vertical")
+                .font(.system(size: 40)).foregroundColor(.secondary)
+            Text("No catalog loaded").font(.headline)
+            Text("Generate it once from the trsextract folder:\n"
+               + "./generate-logs.sh <image-dir> ./logs\n"
+               + "python3 catalog-logs.py ./logs --json > catalog.json")
+                .multilineTextAlignment(.center)
+                .font(.system(.caption, design: .monospaced))
+                .foregroundColor(.secondary)
+            Button("Choose catalog.json…") { chooseCatalog() }
+            if !store.loadError.isEmpty {
+                Text(store.loadError)
+                    .font(.caption).foregroundColor(.orange)
+            }
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var catalogFooter: some View {
+        HStack {
+            Text(store.loadedFrom.isEmpty
+                 ? "No catalog loaded."
+                 : "\(store.disks.count) disk(s) — "
+                   + (store.loadedFrom as NSString).lastPathComponent)
+                .font(.caption).foregroundColor(.secondary)
+                .lineLimit(1).truncationMode(.middle)
+                .help(store.loadedFrom)
+            Spacer()
+            Button("Choose catalog.json…") { chooseCatalog() }
+            Button("Reload") {
+                if !store.loadedFrom.isEmpty { store.load(path: store.loadedFrom) }
+            }
+            .disabled(store.loadedFrom.isEmpty)
+        }
+        .padding()
+    }
+
+    private func chooseCatalog() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        if let json = UTType(filenameExtension: "json") {
+            panel.allowedContentTypes = [json]
+        }
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        store.load(path: url.path)
+        if store.loadError.isEmpty { catalogPath = url.path }
     }
 }
 
@@ -600,7 +897,13 @@ struct ContentView: View {
 struct TRS80ExtractApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            TabView {
+                ContentView()
+                    .tabItem { Label("Disk", systemImage: "externaldrive") }
+                CatalogSearchView()
+                    .tabItem { Label("Catalog", systemImage: "magnifyingglass") }
+            }
+            .padding(.top, 4)
         }
         .windowResizability(.contentSize)
     }

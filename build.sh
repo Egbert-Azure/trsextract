@@ -10,6 +10,19 @@
 #   ./build.sh                 # build using ./trsextract.py
 #   ./build.sh /path/to/trsextract.py
 #
+# -----------------------------------------------------------------------------
+# VERSION HISTORY
+# -----------------------------------------------------------------------------
+# 1.1  (2026-07-02)  Install step. After assembling the bundle, the app is now
+#        copied into /Applications (or ~/Applications if /Applications is not
+#        writable; no sudo), replacing any previous installed copy, so
+#        Spotlight, Launchpad, and the Dock always launch the current build.
+#        Quit a running instance before rebuilding.
+# 1.0  (2026-06-28)  First release. Compiles Sources/main.swift with swiftc
+#        (-parse-as-library for @main), assembles the minimal .app bundle, and
+#        copies trsextract.py into Resources so the app is self-contained.
+# -----------------------------------------------------------------------------
+#
 set -euo pipefail
 
 APP_NAME="TRS80Extract"
@@ -48,7 +61,19 @@ cp "$PYTOOL"           "${BUNDLE}/Contents/Resources/trsextract.py"
 cp "$PLIST"            "${BUNDLE}/Contents/Info.plist"
 
 echo "Done: ${BUNDLE}"
-echo "Run with:  open ${BUNDLE}"
+
+# 3. Install into /Applications (fall back to ~/Applications if not writable)
+#    so Spotlight, Launchpad, and the Dock always see the current build.
+if [[ -w "/Applications" ]]; then
+    DEST="/Applications/${BUNDLE}"
+else
+    mkdir -p "$HOME/Applications"
+    DEST="$HOME/Applications/${BUNDLE}"
+fi
+rm -rf "$DEST"
+cp -R "$BUNDLE" "$DEST"
+echo "Installed: ${DEST}"
+echo "Run with:  open \"${DEST}\"   (or Spotlight / Dock)"
 echo
 echo "Note: this wrapper shells out to python3. The system needs Python 3"
 echo "(stock macOS python3, or 'brew install python')."

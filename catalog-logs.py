@@ -20,7 +20,13 @@
 #
 # Usage:
 #   python3 catalog-logs.py [LOG_DIR] > Disk_Catalog.md
+#   python3 catalog-logs.py [LOG_DIR] --find PATTERN
+#   python3 catalog-logs.py [LOG_DIR] --json > catalog.json
 #       LOG_DIR   directory of <disk>.log files (default: ./logs)
+#       --find    reverse index: which disk(s) hold a file whose NAME/EXT
+#                 contains PATTERN (case-insensitive substring)
+#       --json    dump the parsed catalog as JSON (machine interface for
+#                 GUI front-ends such as TRS80Extract's Catalog tab)
 #
 # Reads the listing each log contains (the list_directory() output: a few
 # header lines, then a "Filename Attr LRL EOFoff Extents" table), and emits a
@@ -38,6 +44,22 @@
 # -----------------------------------------------------------------------------
 # VERSION HISTORY
 # -----------------------------------------------------------------------------
+# 1.4  (2026-07-02)  Refresh hint in the generated Markdown header now points
+#        at the single-command generate-logs.sh 1.1 (which renders both
+#        Disk_Catalog.md and catalog.json in one run) instead of the old
+#        two-command sequence. No functional change.
+# 1.3  (2026-07-02)  Search and machine interface. New --find PATTERN mode:
+#        reverse index (file -> disks) over the parsed listings, case-
+#        insensitive substring match on NAME/EXT, results grouped by file with
+#        the disks that carry it; error-flagged disks are reported separately
+#        as unsearchable. New --json mode: dumps the full parsed catalog
+#        (per-disk geometry, error state, file tuples with attr and
+#        is-standard flag) for GUI front-ends -- TRS80Extract's Catalog tab
+#        reads this instead of re-implementing log parsing, so the Python
+#        parser and the standard-file filter rules stay the single source of
+#        truth. The JSON source field carries the image basename only (same
+#        privacy rule as 1.2). Argument handling moved to argparse; default
+#        Markdown rendering unchanged.
 # 1.2  (2026-06-30)  PRIVACY: emit only the image basename in Disk_Catalog.md,
 #        never the absolute host path. The catalog is committed to a public
 #        repo; the old `### source:` passthrough exposed the account name and
@@ -63,8 +85,10 @@
 #        3 flagged.
 # -----------------------------------------------------------------------------
 
-__version__ = "1.2"
+__version__ = "1.4"
 
+import argparse
+import json
 import os
 import re
 import sys
@@ -182,8 +206,8 @@ def render(infos):
                "**`Disk_Inventory.md`**, which is the hand-maintained companion "
                "to this file.\n")
     out.append("> _Refresh:_ from the `trsextract` folder, "
-               "`./generate-logs.sh <image-dir> ./logs` then "
-               "`python3 catalog-logs.py ./logs > Disk_Catalog.md`.\n")
+               "`./generate-logs.sh <image-dir> ./logs <this-repo>` — renders "
+               "this file and `catalog.json` in one run.\n")
     out.append(f"_Generated from {len(infos)} extraction log(s)._\n")
     out.append("Standard system files (BOOT/SYS, DIR/SYS, SYS0–SYS21, common "
                "utilities) are hidden from the **distinctive files** line so the "
@@ -247,21 +271,97 @@ def render(infos):
     return "\n".join(out)
 
 
+# ---- search (--find) -------------------------------------------------------
+
+def render_find(infos, pattern):
+    """Reverse index: file -> disks. Case-insensitive substring on NAME/EXT."""
+    pat = pattern.lower()
+    hits = {}                               # "NAME/EXT" -> [disk, ...]
+    skipped = []                            # error-flagged disks (unsearchable)
+    for i in infos:
+        if i["error"]:
+            skipped.append(i["disk"])
+            continue
+        for n, e, _ in i["files"]:
+            full = f"{n}/{e}" if e else n
+            if pat in full.lower():
+                hits.setdefault(full, []).append(i["disk"])
+    out = []
+    if not hits:
+        out.append(f"No file matching '{pattern}' in {len(infos)} disk(s).")
+    else:
+        width = max(len(f) for f in hits)
+        for full in sorted(hits, key=_natkey):
+            out.append(f"{full:<{width}}  ->  {', '.join(hits[full])}")
+        n_disks = len({d for ds in hits.values() for d in ds})
+        out.append(f"\n{len(hits)} file(s) on {n_disks} disk(s).")
+    if skipped:
+        out.append(f"Not searched (extraction errors): {', '.join(skipped)}")
+    return "\n".join(out)
+
+
+# ---- machine interface (--json) ---------------------------------------------
+
+def to_json(infos):
+    """Full parsed catalog as JSON, for GUI front-ends. One object per disk;
+    file tuples carry the is_standard() verdict so a GUI can offer the same
+    distinctive-files view without duplicating the filter rules. The source
+    field is the image basename only -- catalog.json may be committed or
+    shared, so the 1.2 privacy rule (no absolute host paths) applies here
+    exactly as it does to Disk_Catalog.md."""
+    disks = []
+    for i in infos:
+        disks.append({
+            "disk": i["disk"],
+            "source": os.path.basename(i["source"]) if i["source"] else "",
+            "error": i["error"],
+            "format": i["fmt"],
+            "tracks": i["tracks"],
+            "sides": i["sides"],
+            "dirtrack": i["dirtrack"],
+            "note": i["note"],
+            "files": [
+                {"name": n, "ext": e, "attr": a,
+                 "standard": is_standard(n, e)}
+                for n, e, a in i["files"]
+            ],
+        })
+    return json.dumps({"generator": f"catalog-logs.py {__version__}",
+                       "disks": disks}, indent=2)
+
+
 def main():
-    log_dir = sys.argv[1] if len(sys.argv) > 1 else "./logs"
-    if not os.path.isdir(log_dir):
-        print(f"ERROR: log dir not found: {log_dir}", file=sys.stderr)
+    ap = argparse.ArgumentParser(
+        description="Merge trsextract per-disk logs into one browsable "
+                    "catalog, search them, or dump them as JSON.")
+    ap.add_argument("log_dir", nargs="?", default="./logs",
+                    help="directory of <disk>.log files (default: ./logs)")
+    ap.add_argument("--find", metavar="PATTERN",
+                    help="reverse index: disks holding a file whose NAME/EXT "
+                         "contains PATTERN (case-insensitive)")
+    ap.add_argument("--json", action="store_true",
+                    help="dump parsed catalog as JSON (for GUI front-ends)")
+    args = ap.parse_args()
+
+    if not os.path.isdir(args.log_dir):
+        print(f"ERROR: log dir not found: {args.log_dir}", file=sys.stderr)
         sys.exit(1)
     logs = sorted(
-        (os.path.join(log_dir, f) for f in os.listdir(log_dir)
+        (os.path.join(args.log_dir, f) for f in os.listdir(args.log_dir)
          if f.endswith(".log")),
         key=lambda p: _natkey(os.path.basename(p)),
     )
     if not logs:
-        print(f"ERROR: no .log files in {log_dir}", file=sys.stderr)
+        print(f"ERROR: no .log files in {args.log_dir}", file=sys.stderr)
         sys.exit(1)
     infos = [parse_log(p) for p in logs]
-    print(render(infos))
+
+    if args.find:
+        print(render_find(infos, args.find))
+    elif args.json:
+        print(to_json(infos))
+    else:
+        print(render(infos))
 
 
 def _natkey(s):

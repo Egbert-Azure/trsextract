@@ -40,12 +40,17 @@
 # -----------------------------------------------------------------------------
 # VERSION HISTORY
 # -----------------------------------------------------------------------------
-# 1.1  (2026-07-02)  One-command refresh. New optional OUT_DIR argument; after
+# 1.2  (2026-07-02)  One-command refresh. New optional OUT_DIR argument; after
 #        the log sweep the script now runs catalog-logs.py (located next to
 #        this script, like trsextract.py) twice to render Disk_Catalog.md and
-#        catalog.json into OUT_DIR. Requires catalog-logs.py >= 1.3 (--json).
-#        Logs remain intermediates in LOG_DIR; only the two catalog files are
-#        written to OUT_DIR.
+#        catalog.json into OUT_DIR. Renders go to temp files and move into
+#        place only on success, so a failed render never clobbers an existing
+#        catalog. Requires catalog-logs.py >= 1.3 (--json). Logs remain
+#        intermediates in LOG_DIR; only the two catalog files go to OUT_DIR.
+# 1.1  (2026-06-30)  PRIVACY: write only the image basename into each log's
+#        "### source:" line, never the absolute host path, so committed logs
+#        and everything rendered from them cannot expose the account name or
+#        local directory tree. Companion to catalog-logs.py 1.2.
 # 1.0  (2026-06-29)  First release. Recurses a directory tree for DMK/DSK/JV1/
 #        JV3 images, runs the trsextract.py listing (-v) on each, and saves one
 #        <diskstem>.log per image into LOG_DIR. Locates trsextract.py next to
@@ -87,7 +92,7 @@ while IFS= read -r -d '' img; do
     log="$LOG_DIR/$stem.log"
     {
         echo "### trsextract listing"
-        echo "### source: $img"
+        echo "### source: $(basename "$img")"
         echo "### generated: $(date '+%Y-%m-%d %H:%M:%S')"
         echo
         "$PY" "$TRS" "$img" -v

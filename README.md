@@ -1,22 +1,25 @@
 # trsextract
 
 A native, dependency-free reader, extractor, and **writer** for **TRS-80
-Model I** NEWDOS/80 and G-DOS floppy disk images (`.dmk`, `.dsk`). Lists
-directories and extracts files **byte-for-byte**, and writes host files
-(BASIC programs, `/CMD` binaries, text, data) **onto** a disk so they can run
-on the emulated Model I — no Windows, no external tools, just Python 3.
+Model I** NEWDOS/80 and G-DOS floppy disk images (`.dmk`, `.dsk`, `.jv1`,
+`.jv3`). Lists directories and extracts files **byte-for-byte**, writes host
+files (BASIC programs, `/CMD` binaries, text, data) **onto** a disk so they
+can run on the emulated Model I, and **catalogues a whole disk collection**
+into a browsable, searchable index — no Windows, no external tools, just
+Python 3.
 
 Built for the preservation of an original TRS-80 Model I disk collection, and
 validated against authoritative TRSTools extractions and against real
 NEWDOS/80 in the sdltrs emulator across multiple disk geometries.
 
-- **Version:** 1.3
+- **Version:** 1.5
 - **License:** GNU General Public License v3 (GPLv3)
 - **Requirements:** Python 3 (standard library only — runs on stock macOS,
   Linux, or anywhere Python 3 is available)
 
 This repository also includes an optional **SwiftUI wrapper** that gives the
-tool a native drag-and-drop macOS interface (see the end of this README).
+tool a native drag-and-drop macOS interface with a searchable collection
+catalog (see the end of this README).
 
 ---
 
@@ -51,6 +54,10 @@ into a **copy**.
   attributes, logical record length, EOF offset, and extent allocation.
 - **Extracts** every file to a folder, byte-exact, following the on-disk
   granule allocation (including multi-extent and FXDE-continuation files).
+- **Auto-detects the image format** — DMK by header verification; the
+  headerless JV1 and JV3 by file extension as a first guess, validated (and
+  overridden if wrong) by directory score, so a mislabelled `.dsk` that is
+  really a JV1 self-corrects.
 - **Auto-detects disk geometry** — sides (1 or 2), sectors per track
   (single- vs double-density), granules per lump, and the reserved offset —
   so no manual configuration is needed across the different disk formats.
@@ -60,6 +67,10 @@ into a **copy**.
   ASCII `.bas` source (tokenised exactly as NEWDOS `SAVE` does), or any file
   verbatim (`/CMD`, `/TXT`, data, source — multi-lump files included). The
   result `LOAD`s and `RUN`s in NEWDOS.
+- **Catalogues a whole collection** with the companion scripts
+  `generate-logs.sh` and `catalog-logs.py`: one command sweeps every image
+  under a directory tree and renders a browsable Markdown index plus a JSON
+  machine interface (see *Cataloguing a collection* below).
 
 Writes never modify the source image: they go to a **copy**
 (`<image>.out.dsk`). Listing and extraction are likewise read-only —
@@ -78,6 +89,12 @@ python3 trsextract.py DISK.dmk --write-basic prog.bas --as NAME/BAS -o out.dsk
 
 # write ANY host file verbatim (multi-lump ok) into a copy of the image
 python3 trsextract.py DISK.dmk --write-file foo.cmd --as FOO/CMD -o out.dsk
+
+# catalogue a whole collection (logs + Disk_Catalog.md + catalog.json)
+./generate-logs.sh /path/to/images ./logs /path/to/TRS80M1
+
+# which disk has FILE X?
+python3 catalog-logs.py ./logs --find PACMAN
 ```
 
 Extraction prints the geometry it auto-detected, e.g.:
@@ -95,21 +112,26 @@ Extracting 22 files to esnd-23_extract/ (sides=2 spt=18 GPL=6 offset=36) ...
 
 | Option | Meaning |
 | --- | --- |
-| `image` | Path to the `.dmk` / `.dsk` image (required). |
+| `image` | Path to the `.dmk` / `.dsk` / `.jv1` / `.jv3` image (required). |
 | `-o`, `--output DIR` | Extract all files to `DIR` (created if absent). Without this, the tool only lists. For write modes, `-o` sets the written copy's path (default `<image>.out.dsk`). |
 | `--track N` | Force the directory track instead of auto-detecting it. |
 | `--detokenize` | (Reserved) de-tokenize BASIC files to ASCII. |
 | `--write-basic SRC.bas` | Tokenise an ASCII BASIC source and write it into a **copy** of the image (NEWDOS/80 DSDD). Use `--as` for the on-disk name. |
 | `--write-file SRC` | Write any host file verbatim into a **copy** of the image (`/CMD`, `/TXT`, data, source; multi-lump files supported). Use `--as` for the on-disk name. |
 | `--as NAME/EXT` | On-disk filename for `--write-basic` / `--write-file` (defaults derived from the source filename; `/BAS` for `--write-basic`). |
-| `-v`, `--verbose` | Show the DMK header and per-track directory-scan scores. |
-| `--version` | Print `trsextract 1.3`. |
+| `-v`, `--verbose` | Show the DMK header, per-track directory-scan scores, and the per-format detection scores. |
+| `--version` | Print `trsextract 1.5`. |
 | `--extract-at START,NSEC,EOF` | Low-level: extract from a known absolute start sector, sector count, and EOF-in-last-sector. For diagnostics. |
 | `--self-test` | Run the built-in extraction regression (meaningful only on the `esnd-23` reference disk). |
 
 ---
 
 ## Supported formats and geometries
+
+Image formats: **DMK** (header-verified), **JV1** and **JV3** (headerless;
+detected by extension first, then validated by directory score — the format
+actually chosen is whichever decodes to a plausible directory, so mislabelled
+images self-correct).
 
 Validated byte/CR-exact against authoritative TRSTools extractions across
 three distinct geometries:
@@ -153,6 +175,53 @@ and TXT.
   not extracted; reading them needs the volume's PDRIVE geometry.
 - **Untested geometries.** 35-track and other uncommon formats should adapt via
   auto-detection but have not been confirmed against references.
+
+---
+
+## Cataloguing a collection
+
+Two companion scripts turn a directory tree of disk images into a single
+browsable, searchable index. They are **read-only over the images** (listing
+only, no extraction).
+
+```
+./generate-logs.sh [IMAGE_DIR] [LOG_DIR] [OUT_DIR]
+```
+
+sweeps every `.dmk`/`.dsk`/`.jv1`/`.jv3` under `IMAGE_DIR`, saves one
+`<disk>.log` per image into `LOG_DIR` (full listing plus `-v` diagnostics),
+and then renders **both catalog outputs** into `OUT_DIR`:
+
+- **`Disk_Catalog.md`** — a browsable Markdown index: a summary table (format,
+  geometry, file count, distinctive-file count, error flags) and a per-disk
+  section with the full file list. Standard system furniture (BOOT/SYS,
+  DIR/SYS, SYS0–SYS21, common utilities) is hidden from the per-disk
+  **distinctive files** line so the content that identifies each disk stands
+  out — the "jog memory" design goal.
+- **`catalog.json`** — the same parsed catalog as a machine interface, one
+  object per disk with geometry, error state, and file tuples (including the
+  standard-file verdict). This is what the SwiftUI wrapper's **Catalog** tab
+  reads, so GUI front-ends reuse this parser instead of re-implementing log
+  parsing.
+
+Renders go to temp files and move into place only on success, so a failed run
+never clobbers an existing catalog. In this project the catalog outputs live
+in the [TRS80M1](https://github.com/Egbert-Azure/TRS80M1) repository, next to
+the collection they describe — point `OUT_DIR` at that checkout; the scripts
+stay here with `trsextract.py`, which they shell out to.
+
+Search from the command line without the GUI:
+
+```
+python3 catalog-logs.py ./logs --find PACMAN
+```
+
+prints a reverse index (file → disks) for every `NAME/EXT` containing the
+pattern, case-insensitive. `python3 catalog-logs.py ./logs` alone renders the
+Markdown to stdout; `--json` the JSON.
+
+**Privacy:** the logs, the Markdown, and the JSON all record only each image's
+**basename**, never the absolute host path — safe to commit to a public repo.
 
 ---
 
@@ -221,7 +290,9 @@ write targets.
 ## The SwiftUI wrapper (optional)
 
 This repo also includes a small native macOS app that wraps the tool. Its
-start screen offers two intents side by side:
+window has two tabs:
+
+**Disk** — the read/write workspace, with two intents side by side:
 
 - **Read a disk** — drop a `.dmk`/`.dsk` (or use the picker) to list the
   directory in a table and **Extract All**.
@@ -231,18 +302,29 @@ start screen offers two intents side by side:
   into a COPY (`<target>.out.dsk`); the original disk is never modified, and
   the app then shows the resulting image's listing.
 
+**Catalog** — search the whole collection: "which disk has FILE X?". Type in
+the search field to filter every `NAME/EXT` across all disks live; leave it
+empty to browse — disk list with file counts on the left, per-disk file table
+on the right. Standard system files are hidden by default (checkbox to
+include). The tab reads the `catalog.json` produced by `generate-logs.sh` /
+`catalog-logs.py --json` and filters it in memory; point it at the file once
+via *Choose catalog.json…* and it remembers the path. After a re-sweep, click
+*Reload*.
+
 It shells out to `python3 trsextract.py`, so it needs Python 3 on the system.
 
 Build it with:
 
 ```
 ./build.sh
-open TRS80Extract.app
 ```
 
 `build.sh` compiles `Sources/main.swift` (with `swiftc -parse-as-library`),
-assembles the `.app` bundle using `Info.plist`, and copies `trsextract.py`
-into the bundle's Resources so the app finds it at runtime.
+assembles the `.app` bundle using `Info.plist`, copies `trsextract.py` into
+the bundle's Resources so the app finds it at runtime, and **installs the
+result into `/Applications`** (or `~/Applications` if that is not writable) —
+so Spotlight, Launchpad, and the Dock always launch the current build. Quit a
+running instance before rebuilding.
 
 ---
 
@@ -313,7 +395,7 @@ GAME/CMD:1                   (run a /CMD)
 
 ### In the app
 
-1. On the start screen, use the right-hand **Write a file to a disk** zone.
+1. On the **Disk** tab, use the right-hand **Write a file to a disk** zone.
 2. **Step 1 — choose the target disk.** Click *Choose Target Disk…* or drop a
    `.dmk`/`.dsk`. The zone turns **green** and shows the target name.
 3. **Step 2 — drop the file to add** (`.bas`, `.cmd`, `.txt`, data…). A sheet
@@ -354,7 +436,7 @@ Disk images and the broader hardware context come from the
 
 ## License
 
-Copyright (C) 2026 Egbert Schröer
+Copyright (C) 2026 Egbert Schroeer
 
 This program is free software: you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software

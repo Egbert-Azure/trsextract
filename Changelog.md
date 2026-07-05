@@ -7,45 +7,34 @@ disk-by-disk validation history also lives in the header of `trsextract.py`.
 ## trsextract.py
 1.6
 
-New --undelete NAME/EXT: resurrects a KILLed file in a copy of the image
-(<image>.out.dsk or -o). A NEWDOS KILL clears the entry's active bit,
-removes its HIT hash, and frees its granules in the GAT but leaves the
-entry bytes and (until reused) the data sectors intact; undelete reverses
-all three. GAT and HIT are located structurally (the two sectors before the
-first entry sector), so SS-SD (GAT 0 / HIT 1 / entries 2+) and DSDD
-(GAT 6 / HIT 7 / entries 8+) both resolve without configuration.
-Two safety gates: (1) refuses when the dead file's granules overlap any
-HIT-live file's granules — the data was partially overwritten; --force
-overrides with an explicit corruption warning. (2) Before writing, the
-DEC→HIT slot mapping must confirm against at least two live entries'
-hashes, otherwise the tool aborts without touching the directory. Gate 2
-exists because a mis-mapped HIT write corrupts other files' liveness —
-the exact failure caught during development.
-Validated on esnd-40: FORMFILE undeleted with a 9-byte total image
-footprint (attr + HIT + GAT + three sector CRCs); the resurrected file
-extracts byte-identical to an independently preserved copy. Overlap
-refusal verified on DTAST/ASS (granule reused by HRGDUM/ASS). Archival
-context: the entire DTA-Programmsystem source material on esnd-40 sits in
-killed entries — the DIR-vs-trsextract listing difference is by design.
-Fix (found by the 1.6 validation suite): a DMK-content image named .dsk
-— exactly what --write-file produces as <image>.out.dsk — was claimed
-by a phantom JV1 parse (directory score 6 > 0) under the 1.4/1.5 extension
-routing, so the DMK path was never tried and every .out.dsk copy of a
-DMK source misparsed. The .dsk branch now also scores the DMK candidate
-and the higher directory score wins (esnd-40.out.dsk: DMK 57 vs JV1 6).
-SIDEKICK.JV1 (no DMK header) and genuine JV .dsk images are unaffected.
-Note: relative to 1.3-generated catalogs, listings may show one additional
-file on some disks — the pre-1.5 blob-stride loop always dropped the last
-directory slot of the track (esnd-05: SCRIPSIT/TXT now listed, 64 entries).
-This is the 1.5 per-sector decode working, not a 1.6 change; expect the
-count differences to clear on the next generate-logs.sh sweep.
-Known limitations: builds where GAT/HIT do not directly precede the entry
-sectors (esnd-15/25 style, entries in sectors 10-17) may fail the mapping
-self-check and be refused — safe, but not yet resurrectable.
---write-file/--write-basic still assume DSDD geometry (hardcoded
-track 15 / GAT 6); on SS disks they fail with "sector not formatted"
-after creating the unmodified .out.dsk copy — geometry-aware writer
-planned.
+
+### 1.6
+- New `--undelete NAME/EXT`: restores a KILLed file in a copy of the image.
+  KILL clears three things — the entry's active bit (0x10), its HIT hash, and
+  its GAT granule bits — and leaves the entry and data sectors intact;
+  undelete sets all three back. Geometry-aware: GAT and HIT are located as
+  the two sectors before the first entry sector (SS-SD: 0/1, entries 2+;
+  DSDD: 6/7, entries 8+), no configuration.
+- Safety: refuses if the file's granules were reallocated to a HIT-live file
+  (data partially overwritten; `--force` overrides with a warning). Refuses
+  to write unless the DEC→HIT mapping matches ≥ 2 live entries' hashes — a
+  mis-mapped HIT write would de-list other files.
+- Validated on esnd-40: FORMFILE undeleted with 9 bytes changed in the image
+  (attr + HIT + GAT + 3 sector CRCs); the file extracts byte-identical to an
+  independently preserved copy. DTAST/ASS correctly refused (granule 6
+  reused by HRGDUM/ASS).
+- Fix: a DMK image named `.dsk` — including the tool's own `<image>.out.dsk`
+  copies — was parsed as JV1 since 1.4: a phantom JV directory score (6 > 0)
+  won and the DMK path was never tried. The `.dsk` branch now scores the DMK
+  candidate too and the higher score wins (esnd-40.out.dsk: DMK 57 vs JV1 6).
+  SIDEKICK.JV1 and genuine JV `.dsk` images: unaffected.
+- Catalog note: a 1.6 sweep can list one more file per disk than 1.3-era
+  catalogs (pre-1.5 decode dropped the last directory slot; esnd-05 gains
+  SCRIPSIT/TXT). 1.5 behaviour, not damage.
+- Known: esnd-15/25-style layouts (entries in sectors 10-17) fail the mapping
+  self-check and are refused. `--write-file`/`--write-basic` still hardcode
+  DSDD (track 15, GAT 6); on SS disks they fail with "sector not formatted"
+  after creating the unmodified copy.
 
 ### 1.5
 - Fix: directory mis-read on builds whose entries do not start in sector 0 of

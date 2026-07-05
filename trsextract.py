@@ -49,6 +49,37 @@ authoritative source before trusting it on new disks.
 -----------------------------------------------------------------------------
 VERSION HISTORY
 -----------------------------------------------------------------------------
+1.7  (2026-07-05)  Geometry-aware writer; write path no longer DSDD-only.
+       - Newdos80Writer now locates directory track/side, GAT, HIT and entry
+         sectors structurally (shared _locate_dir_structures with --undelete)
+         and takes sides/spt/gpl/offset from detect_geometry. Removes the
+         hardcoded DSDD assumptions (track 15 side 0, GAT 6, 2*18 spt) that
+         made every write to an SS disk fail with "sector not formatted",
+         and would have corrupted DSDD disks with non-standard directory
+         placement (esnd-05: dir track 5 SIDE 1, GAT 8 / HIT 9 / entries
+         10-17).
+       - Same write gate as --undelete: DEC->HIT mapping must confirm
+         against >= 2 live entries or the writer aborts.
+       - Slot policy: virgin directory slots are preferred over KILLed
+         entries, so a write does not destroy dead entries --undelete could
+         still resurrect; live and system slots (attr 0x10 / 0x40) are never
+         reused. Dead slots are taken only when no virgin slot remains.
+       - Entry sectors run contiguously from the first entry sector to the
+         end of the track (DEC's sssss counts from there); detection by
+         content alone hid sectors holding only never-used slots and
+         reported "directory full" with free slots present.
+       - VALIDATED SS-SD (esnd-40): AUSWERT/CMD rebuild (5424 bytes, 22
+         sectors, 5 granules) written to a copy, listed, extracted
+         BYTE-EXACT; the dead FORMFILE entry on the same disk remains
+         undeletable afterwards. Undelete regression unchanged (9-byte
+         footprint). esnd-05: 64/64 HIT confirmations on the sectors-10-17
+         layout; write correctly refused (directory genuinely full, 64/64
+         live). DSDD POSITIVE write not re-run in this cycle - rerun the
+         blank-disk ALIEN/Z80 validation before trusting DSDD writes.
+       - Corrects 1.6 note: the esnd-15/25-style layout (entries 10-17) DOES
+         pass the mapping self-check when GAT/HIT precede the entries;
+         esnd-05 confirms.
+
 1.6  (2026-07-04)  NEW --undelete NAME/EXT: geometry-aware resurrection of
        KILLed files, developed on esnd-40 (SS 10-spt, dir track 17).
        - A NEWDOS KILL clears the entry's active bit (0x10), removes its HIT
@@ -368,7 +399,7 @@ KNOWN ISSUES / TODO
 -----------------------------------------------------------------------------
 """
 
-__version__ = "1.6"
+__version__ = "1.7"
 
 import argparse
 import os
@@ -1233,6 +1264,56 @@ class DMKWriteImage:
         open(path or self.path, 'wb').write(self.raw)
 
 
+def _locate_dir_structures(img, verbose=False):
+    """Locate directory geometry and structures for write-side operations.
+
+    Returns dict(dt, ds, sides, spt, gpl, offset, gat_id, hit_id, ent_ids,
+    secs). GAT and HIT are the two sectors before the first entry sector;
+    entry sectors are those containing at least one structurally valid FPDE
+    (or BOOT/SYS, attr 0x94, excluded by _valid_entry as an FXDE pattern).
+    Shared by --undelete and the writer so both resolve SS-SD and DSDD
+    layouts identically."""
+    dt, ds = find_directory_track(img, verbose=verbose)
+    sides, spt, gpl, offset = detect_geometry(img, dt, ds)
+    secs = img.track_sectors(dt, ds)
+    ids = sorted(secs)
+
+    def is_entry_sector(d):
+        return any(_valid_entry(d[o:o + 32]) or d[o] == 0x94
+                   for o in range(0, 256, 32))
+    detected = [s for s in ids if is_entry_sector(secs[s])]
+    first_ent = detected[0]
+    # Entry sectors run contiguously from the first one to the end of the
+    # track (DEC's sssss counts them from there). Detection alone would miss
+    # sectors holding only never-used slots, hiding their free entries.
+    ent_ids = [s for s in ids if s >= first_ent]
+    hit_id = ids[ids.index(first_ent) - 1]
+    gat_id = ids[ids.index(first_ent) - 2]
+    return dict(dt=dt, ds=ds, sides=sides, spt=spt, gpl=gpl, offset=offset,
+                gat_id=gat_id, hit_id=hit_id, ent_ids=ent_ids, secs=secs)
+
+
+def _confirm_hit_mapping(secs, ent_ids, hit):
+    """Count live entries whose HIT hash sits at the computed DEC
+    (offset = entry_sector_index + 32*row). Both write-side operations
+    require >= 2 confirmations before modifying the directory: a mis-mapped
+    HIT write would de-list OTHER files."""
+    confirmed = 0
+    live_slots = set()
+    for si, sid in enumerate(ent_ids):
+        d = secs[sid]
+        for row in range(8):
+            e = d[row * 32:(row + 1) * 32]
+            if not (_valid_entry(e) or e[0] == 0x94):
+                continue
+            dec = si + 32 * row
+            if dec < len(hit) and hit[dec] != 0 and \
+                    hit[dec] == newdos_hashcode(e[5:13], e[13:16]):
+                confirmed += 1
+                live_slots.add((sid, row))
+    return confirmed, live_slots
+
+
 def undelete_file(image_path, name, ext, out_path, force=False, verbose=False):
     """Resurrect a KILLed NEWDOS/80 file in a COPY of the image.
 
@@ -1248,18 +1329,12 @@ def undelete_file(image_path, name, ext, out_path, force=False, verbose=False):
     7 live entries of esnd-40 (SS 10-spt) — DSDD layout uses the same rule.
     """
     img = load_image(image_path, verbose)
-    dt, ds = find_directory_track(img)
-    sides, spt, gpl, offset = detect_geometry(img, dt, ds)
-    secs = img.track_sectors(dt, ds)
-    ids = sorted(secs)
-
-    def is_entry_sector(d):
-        return any(_valid_entry(d[o:o + 32]) or d[o] == 0x94  # BOOT/SYS
-                   for o in range(0, 256, 32))
-    ent_ids = [s for s in ids if is_entry_sector(secs[s])]
-    first_ent = ent_ids[0]
-    hit_id = ids[ids.index(first_ent) - 1]
-    gat_id = ids[ids.index(first_ent) - 2]
+    loc = _locate_dir_structures(img, verbose)
+    dt, ds = loc['dt'], loc['ds']
+    gpl = loc['gpl']
+    secs = loc['secs']
+    ent_ids = loc['ent_ids']
+    hit_id, gat_id = loc['hit_id'], loc['gat_id']
     hit = bytearray(secs[hit_id])
     gat = bytearray(secs[gat_id])
 
@@ -1335,14 +1410,37 @@ def undelete_file(image_path, name, ext, out_path, force=False, verbose=False):
 
 
 class Newdos80Writer:
-    """Append a file into free space of a NEWDOS/80 DSDD DMK image."""
-    def __init__(self, path):
+    """Append a file into free space of a NEWDOS/80 DMK image.
+
+    Since 1.7 the writer is geometry-aware: directory track/side, GAT, HIT,
+    and entry sectors are located structurally (shared locator with
+    --undelete), and geometry (sides, spt, gpl, offset) comes from
+    detect_geometry. Before any directory write, the DEC->HIT mapping must
+    confirm against >= 2 live entries, else the writer aborts."""
+    def __init__(self, path, verbose=False):
         self.w = DMKWriteImage(path)
-        self.spt = 18; self.gpl = 6; self.sec_per_gran = 5; self.offset = 36
-        self.dt, self.ds = 15, 0
-        self.gat_sec, self.hit_sec, self.ent_sec0 = 6, 7, 8
+        img = load_image(path, verbose)
+        loc = _locate_dir_structures(img, verbose)
+        self.sides = loc['sides']
+        self.spt = loc['spt']; self.gpl = loc['gpl']
+        self.sec_per_gran = 5; self.offset = loc['offset']
+        self.dt, self.ds = loc['dt'], loc['ds']
+        self.gat_sec, self.hit_sec = loc['gat_id'], loc['hit_id']
+        self.ent_ids = loc['ent_ids']
+        hit = img.get(self.dt, self.ds, self.hit_sec)
+        confirmed, self._live_slots = _confirm_hit_mapping(
+            loc['secs'], self.ent_ids, hit)
+        if confirmed < 2:
+            raise RuntimeError(
+                f"HIT mapping could not be confirmed ({confirmed} live "
+                f"entries matched); refusing to write to this directory "
+                f"layout")
+        # granule address space: bounded by the actual sector count
+        self.max_gran = (len(img.sectors) - self.offset) // self.sec_per_gran
 
     def _abs_to_phys(self, abs_sec):
+        if self.sides == 1:
+            return abs_sec // self.spt, 0, abs_sec % self.spt
         cyl = abs_sec // (2*self.spt)
         rem = abs_sec % (2*self.spt)
         return cyl, rem // self.spt, rem % self.spt
@@ -1361,13 +1459,13 @@ class Newdos80Writer:
         gpl = self.gpl
         def is_free(gran):
             lump = gran // gpl; bit = gran % gpl
-            if lump < reserved_lumps or lump >= self.w.ntracks:
+            if lump < reserved_lumps or gran >= self.max_gran:
                 return False
             if gat[lump] == 0xFF:
                 return False
             return (gat[lump] & (1 << bit)) == 0
         run = 0; start = None
-        for gran in range(reserved_lumps*gpl, self.w.ntracks*gpl):
+        for gran in range(reserved_lumps*gpl, self.max_gran):
             if is_free(gran):
                 if run == 0:
                     start = gran
@@ -1440,19 +1538,34 @@ class Newdos80Writer:
             eof_byte = 0
         rel = nsec
 
-        # find free directory entry (lowest DEC)
-        chosen = None
-        for sssss in range(0, self.spt - 8):
-            esec = self.ent_sec0 + sssss
+        # Find a free directory slot. Slots occupied by HIT-live entries are
+        # never candidates. Among the rest, VIRGIN slots (no structurally
+        # valid entry) are preferred over KILLed entries, so writing does not
+        # destroy dead entries that --undelete could still resurrect; dead
+        # slots are reused only when no virgin slot remains (as NEWDOS does).
+        virgin = None; dead = None
+        for sssss, esec in enumerate(self.ent_ids):
             d = w.read_sector(self.dt, self.ds, esec)
             if d is None:
                 continue
             for rrr in range(0, 256 // 32):
                 off = rrr * 32
-                if (d[off] & 0x10) == 0:
-                    chosen = (sssss, rrr, esec, off); break
-            if chosen:
+                if (esec, rrr) in self._live_slots:
+                    continue
+                e = d[off:off + 32]
+                if e[0] == 0x94:                     # BOOT/SYS
+                    continue
+                if e[0] & 0x50:                      # active or system bit:
+                    continue                         # occupied, HIT or not
+                if _valid_entry(e) or (e[0] & 0x80): # dead FPDE / FXDE-like
+                    if dead is None and _valid_entry(e):
+                        dead = (sssss, rrr, esec, off)
+                    continue
+                if virgin is None:
+                    virgin = (sssss, rrr, esec, off)
+            if virgin:
                 break
+        chosen = virgin or dead
         if not chosen:
             raise RuntimeError("directory full")
         sssss, rrr, esec, off = chosen

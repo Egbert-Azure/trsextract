@@ -12,7 +12,7 @@ Built for the preservation of an original TRS-80 Model I disk collection, and
 validated against authoritative TRSTools extractions and against real
 NEWDOS/80 in the sdltrs emulator across multiple disk geometries.
 
-- **Version:** 1.5
+- **Version:** 1.6
 - **License:** GNU General Public License v3 (GPLv3)
 - **Requirements:** Python 3 (standard library only — runs on stock macOS,
   Linux, or anywhere Python 3 is available)
@@ -57,7 +57,7 @@ into a **copy**.
 - **Auto-detects the image format** — DMK by header verification; the
   headerless JV1 and JV3 by file extension as a first guess, validated (and
   overridden if wrong) by directory score, so a mislabelled `.dsk` that is
-  really a JV1 self-corrects.
+  really a JV1 — or a DMK copied to a `.dsk` name — self-corrects.
 - **Auto-detects disk geometry** — sides (1 or 2), sectors per track
   (single- vs double-density), granules per lump, and the reserved offset —
   so no manual configuration is needed across the different disk formats.
@@ -67,6 +67,9 @@ into a **copy**.
   ASCII `.bas` source (tokenised exactly as NEWDOS `SAVE` does), or any file
   verbatim (`/CMD`, `/TXT`, data, source — multi-lump files included). The
   result `LOAD`s and `RUN`s in NEWDOS.
+- **Resurrects deleted files** whose data granules were never reused
+  (`--undelete`), geometry-aware across SS-SD and DSDD layouts — see
+  *Resurrecting deleted files* below.
 - **Catalogues a whole collection** with the companion scripts
   `generate-logs.sh` and `catalog-logs.py`: one command sweeps every image
   under a directory tree and renders a browsable Markdown index plus a JSON
@@ -89,6 +92,9 @@ python3 trsextract.py DISK.dmk --write-basic prog.bas --as NAME/BAS -o out.dsk
 
 # write ANY host file verbatim (multi-lump ok) into a copy of the image
 python3 trsextract.py DISK.dmk --write-file foo.cmd --as FOO/CMD -o out.dsk
+
+# resurrect a deleted (KILLed) file into a copy of the image
+python3 trsextract.py DISK.dmk --undelete FORMFILE -o restored.dsk
 
 # catalogue a whole collection (logs + Disk_Catalog.md + catalog.json)
 ./generate-logs.sh /path/to/images ./logs /path/to/TRS80M1
@@ -119,8 +125,10 @@ Extracting 22 files to esnd-23_extract/ (sides=2 spt=18 GPL=6 offset=36) ...
 | `--write-basic SRC.bas` | Tokenise an ASCII BASIC source and write it into a **copy** of the image (NEWDOS/80 DSDD). Use `--as` for the on-disk name. |
 | `--write-file SRC` | Write any host file verbatim into a **copy** of the image (`/CMD`, `/TXT`, data, source; multi-lump files supported). Use `--as` for the on-disk name. |
 | `--as NAME/EXT` | On-disk filename for `--write-basic` / `--write-file` (defaults derived from the source filename; `/BAS` for `--write-basic`). |
+| `--undelete NAME/EXT` | Resurrect a KILLed file in a **copy** of the image: restores the entry's active bit, HIT hash, and GAT allocation. Geometry-aware (SS-SD and DSDD). Refuses if the file's granules were reallocated to live files. |
+| `--force` | With `--undelete`: resurrect despite granule overlap (the result **will** be corrupt; for forensic salvage only). |
 | `-v`, `--verbose` | Show the DMK header, per-track directory-scan scores, and the per-format detection scores. |
-| `--version` | Print `trsextract 1.5`. |
+| `--version` | Print `trsextract 1.6`. |
 | `--extract-at START,NSEC,EOF` | Low-level: extract from a known absolute start sector, sector count, and EOF-in-last-sector. For diagnostics. |
 | `--self-test` | Run the built-in extraction regression (meaningful only on the `esnd-23` reference disk). |
 
@@ -131,7 +139,10 @@ Extracting 22 files to esnd-23_extract/ (sides=2 spt=18 GPL=6 offset=36) ...
 Image formats: **DMK** (header-verified), **JV1** and **JV3** (headerless;
 detected by extension first, then validated by directory score — the format
 actually chosen is whichever decodes to a plausible directory, so mislabelled
-images self-correct).
+images self-correct). Since 1.6 the `.dsk` branch also scores the DMK
+candidate, so a DMK copied to a `.dsk` name — such as the tool's own
+`<image>.out.dsk` copies of DMK sources — is no longer claimed by a phantom
+JV parse.
 
 Validated byte/CR-exact against authoritative TRSTools extractions across
 three distinct geometries:
@@ -170,7 +181,15 @@ and TXT.
   **not** auto-hide them, because neither the type-bit nor HIT-membership test
   is reliable across all disk types (both wrongly drop genuine G-DOS files).
   On the `esnd-23` reference disk, the stale slots are `WBEDIT/COM` and
-  `PLANTS` (the live demo file is `PLANT`, singular).
+  `PLANTS` (the live demo file is `PLANT`, singular). If a deleted entry's
+  data granules were never reused, the file can be brought back properly with
+  `--undelete` (see *Resurrecting deleted files*).
+- **Undelete on unusual directory layouts.** `--undelete` locates the GAT and
+  HIT structurally as the two sectors before the first entry sector, and
+  refuses to write unless its DEC→HIT mapping is confirmed against the disk's
+  own live entries. Builds where entries do not directly follow GAT/HIT (the
+  esnd-15/25 style, entries in sectors 10-17) may fail that self-check and be
+  refused — safe, but not yet resurrectable.
 - **Hard-disk volume images** (e.g. `GAMES.DSK`) are detected and reported but
   not extracted; reading them needs the volume's PDRIVE geometry.
 - **Untested geometries.** 35-track and other uncommon formats should adapt via
@@ -209,6 +228,11 @@ never clobbers an existing catalog. In this project the catalog outputs live
 in the [TRS80M1](https://github.com/Egbert-Azure/TRS80M1) repository, next to
 the collection they describe — point `OUT_DIR` at that checkout; the scripts
 stay here with `trsextract.py`, which they shell out to.
+
+Note when re-sweeping with 1.6: listings may show one more file on some disks
+than a 1.3-generated catalog did — the pre-1.5 directory decode always dropped
+the last slot of the directory track (esnd-05 gains `SCRIPSIT/TXT`, 64
+entries). That is the 1.5 per-sector decode working, not damage.
 
 Search from the command line without the GUI:
 
@@ -283,7 +307,8 @@ need more than four extents are rejected (those would require FXDE continuation
 entries). Validated at scale on real NEWDOS: a 99 673-byte, 3-extent file
 (`ALIEN/Z80`) written from the host appears in `DIR` on a real boot. Target
 geometry is **NEWDOS/80 DSDD**; other geometries are read fine but not yet
-write targets.
+write targets. (`--undelete` is the exception: it is geometry-aware, because
+it only edits directory metadata in place rather than allocating new space.)
 
 ---
 
@@ -310,6 +335,8 @@ include). The tab reads the `catalog.json` produced by `generate-logs.sh` /
 `catalog-logs.py --json` and filters it in memory; point it at the file once
 via *Choose catalog.json…* and it remembers the path. After a re-sweep, click
 *Reload*.
+
+Undelete is currently CLI-only; the app has no UI for it yet.
 
 It shells out to `python3 trsextract.py`, so it needs Python 3 on the system.
 
@@ -393,6 +420,29 @@ LOAD "MYPROG/BAS:1"  / RUN   (BASIC)         — or —
 GAME/CMD:1                   (run a /CMD)
 ```
 
+### Resurrecting deleted files (`--undelete`)
+
+A NEWDOS `KILL` does three small things: it clears the directory entry's
+active bit, removes the file's hash from the HIT, and frees its granules in
+the GAT. The entry bytes and the data sectors themselves stay on disk until
+something reuses them. `--undelete` reverses exactly those three changes —
+in a copy, never the original, like every write in this tool.
+
+```text
+python3 trsextract.py esnd-40.dmk --undelete FORMFILE
+```
+
+Safety comes first, twice: the tool refuses when the dead file's granules
+were reallocated to a live file (the data is partially overwritten — the
+listing may look fine, the content won't be), and it refuses to touch the
+directory at all unless its computed HIT slot mapping is confirmed against
+the disk's own live entries. `--force` overrides the first gate for forensic
+salvage; nothing overrides the second.
+
+Validated on the collection: a file deleted decades ago was resurrected with
+a 9-byte total change to the image and extracted byte-identical to an
+independently preserved copy of the same file.
+
 ### In the app
 
 1. On the **Disk** tab, use the right-hand **Write a file to a disk** zone.
@@ -409,15 +459,17 @@ typically read one disk (say `esnd-23`) while writing onto a blank one.
 
 ### What it can and cannot do (write)
 
-- **Geometry:** NEWDOS/80 DSDD only. Other formats (G-DOS, single-density) are
-  read fine but are not yet write targets.
+- **Geometry:** file writes are NEWDOS/80 DSDD only. Other formats (G-DOS,
+  single-density) are read fine but are not yet write targets. `--undelete`
+  is the exception — geometry-aware, validated on SS-SD (esnd-40).
 - **Allocation:** the file goes into a single **contiguous** run of free
   granules, described by up to four extent pairs (so large files are fine —
   a 99 KB, 3-extent file is validated on real NEWDOS). Files needing more than
   four extents, or a disk with no contiguous run big enough, are **rejected
   with a clear error**, never written partially.
 - **Append only:** writes add a file into free space. No overwrite, delete,
-  rename, or defragment in this version.
+  rename, or defragment in this version. Undeleting an existing dead entry is
+  supported (`--undelete`).
 - **Always a copy:** the source image is never modified.
 
 ---

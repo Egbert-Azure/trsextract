@@ -49,6 +49,46 @@ authoritative source before trusting it on new disks.
 -----------------------------------------------------------------------------
 VERSION HISTORY
 -----------------------------------------------------------------------------
+1.6  (2026-07-04)  NEW --undelete NAME/EXT: geometry-aware resurrection of
+       KILLed files, developed on esnd-40 (SS 10-spt, dir track 17).
+       - A NEWDOS KILL clears the entry's active bit (0x10), removes its HIT
+         hash, and frees its granules in the GAT, but leaves the 32-byte entry
+         and (until reused) the data sectors intact. --undelete reverses all
+         three, writing to a COPY (<image>.out.dsk) as always.
+       - GAT and HIT are located structurally (the two sectors before the
+         first entry sector), so both SS (GAT 0 / HIT 1 / entries 2+) and
+         DSDD (GAT 6 / HIT 7 / entries 8+) layouts resolve without config.
+       - SAFETY 1: refuses when the dead file's granules overlap any HIT-live
+         file's granules (data partially overwritten; --force overrides with
+         a corruption warning).
+       - SAFETY 2: before writing, the DEC/HIT slot mapping
+         (offset = entry_sector_index + 32*row) must confirm against >= 2
+         live entries' hashes, else abort without touching the directory.
+         This check exists because a mis-mapped HIT write corrupts OTHER
+         files' liveness - the exact failure observed during development.
+       - VALIDATED on esnd-40: FORMFILE undeleted with a 9-byte total image
+         footprint (attr + HIT + GAT + 3 sector CRCs); the resurrected file
+         extracts BYTE-IDENTICAL to an independently preserved copy. Overlap
+         refusal verified on DTAST/ASS (granule reused by HRGDUM/ASS).
+       - CONTEXT: on esnd-40 the entire DTA-Programmsystem source material
+         (FORMFILE, TEST/ASS, WECKER/ASS, CODE/ASS, DTAST/ASS, TESTTEXT/CMD,
+         BASIC/CMD) sits in KILLed entries; extraction had recovered it from
+         dead slots. NEWDOS DIR hides these correctly - the DIR-vs-trsextract
+         listing difference is by design (see the 0.9 liveness note).
+       - FIX (found by the 1.6 validation suite): a DMK-content image named
+         .dsk -- exactly what --write-file produces as <image>.out.dsk -- was
+         claimed by a phantom JV1 parse (dir score 6 > 0) under the 1.4/1.5
+         extension routing, so DMK was never tried. The .dsk branch now also
+         scores the DMK candidate and the higher directory score wins
+         (esnd-40.out.dsk: DMK 57 vs JV1 6 -> DMK). SIDEKICK.JV1 (no DMK
+         header) and true JV .dsk images are unaffected.
+       - KNOWN: layouts where GAT/HIT do not directly precede the entry
+         sectors (cf. the esnd-15/25 builds with entries in sectors 10-17)
+         may fail the self-check and be refused - safe, but not yet
+         resurrectable. --write-file/--write-basic still assume DSDD
+         (hardcoded track 15 / GAT 6); on SS disks they fail with "sector not
+         formatted" AFTER creating the unmodified .out.dsk copy - fix planned.
+
 1.5  (2026-06-30)  FIX: directory mis-read on builds with leading non-entry
        sectors (esnd-15 / esnd-25, the "damaged directory pair").
        - BUG: decode_directory concatenated ALL directory-track sectors into
@@ -328,7 +368,7 @@ KNOWN ISSUES / TODO
 -----------------------------------------------------------------------------
 """
 
-__version__ = "1.5"
+__version__ = "1.6"
 
 import argparse
 import os
@@ -589,14 +629,23 @@ def load_image(path, verbose=False):
 
     if ext in (".jv1", ".dsk", ".jv3"):
         img = _build_jv(data, verbose)
-        if img is not None and _best_dir_score(img) > 0:
-            return img
-        # JV parse produced no readable directory: maybe it is really a DMK
-        # that was misnamed. Try the header path before giving up.
+        jv_score = _best_dir_score(img)
+        # A DMK renamed/copied to .dsk (e.g. the tool's own <image>.out.dsk
+        # copies of DMK sources) must not be claimed by a phantom JV parse:
+        # JV1 over DMK bytes can yield a small nonzero directory score. So the
+        # DMK header path is evaluated too, and the HIGHER directory score
+        # wins -- same final-arbiter principle as the JV tie-break itself.
         dmk = try_dmk()
         if dmk is not None:
-            return dmk
-        return img or JV1Image(data, verbose)
+            dmk_score = _best_dir_score(dmk)
+            if verbose:
+                print(f"[detect] DMK: best dir score {dmk_score}",
+                      file=sys.stderr)
+            if dmk_score > jv_score:
+                return dmk
+        if img is not None and jv_score > 0:
+            return img
+        return dmk or img or JV1Image(data, verbose)
 
     # Unknown / missing extension: fall back to content order -- DMK header
     # first (self-validating), then JV tie-break.
@@ -1184,6 +1233,107 @@ class DMKWriteImage:
         open(path or self.path, 'wb').write(self.raw)
 
 
+def undelete_file(image_path, name, ext, out_path, force=False, verbose=False):
+    """Resurrect a KILLed NEWDOS/80 file in a COPY of the image.
+
+    A kill clears the entry's active bit (0x10), removes its HIT hash, and
+    frees its granules in the GAT — but leaves the entry bytes and (unless
+    reused) the data sectors intact. Undelete reverses all three, geometry-
+    aware via the same detection the read path uses.
+
+    Safety: refuses (unless force=True) when the dead file's granules overlap
+    any HIT-live file's granules — overlap means the data was partially
+    overwritten and resurrection would yield a corrupt file.
+    HIT offset mapping ((sector_index)+32*row) and hash verified against the
+    7 live entries of esnd-40 (SS 10-spt) — DSDD layout uses the same rule.
+    """
+    img = load_image(image_path, verbose)
+    dt, ds = find_directory_track(img)
+    sides, spt, gpl, offset = detect_geometry(img, dt, ds)
+    secs = img.track_sectors(dt, ds)
+    ids = sorted(secs)
+
+    def is_entry_sector(d):
+        return any(_valid_entry(d[o:o + 32]) or d[o] == 0x94  # BOOT/SYS
+                   for o in range(0, 256, 32))
+    ent_ids = [s for s in ids if is_entry_sector(secs[s])]
+    first_ent = ent_ids[0]
+    hit_id = ids[ids.index(first_ent) - 1]
+    gat_id = ids[ids.index(first_ent) - 2]
+    hit = bytearray(secs[hit_id])
+    gat = bytearray(secs[gat_id])
+
+    def extents_of(e):
+        out, p = [], 22
+        while p < 31 and e[p] != 0xFF:
+            out.append((e[p], e[p + 1])); p += 2
+        return out
+
+    def granules(exts):
+        g = set()
+        for lump, packed in exts:
+            base = lump * gpl + ((packed & 0xE0) >> 5)
+            for k in range((packed & 0x1F) + 1):
+                g.add(base + k)
+        return g
+
+    name8 = name.upper().ljust(8).encode()
+    ext3 = ext.upper().ljust(3).encode()
+    target = None            # (sector_id, row, entry_bytes, dec)
+    live_gran = set()
+    confirmed = 0            # entries whose hash sits at the computed DEC
+    for si, sid in enumerate(ent_ids):
+        d = secs[sid]
+        for row in range(8):
+            e = d[row * 32:(row + 1) * 32]
+            if not (_valid_entry(e) or e[0] == 0x94):
+                continue
+            dec = si + 32 * row
+            in_hit = dec < len(hit) and hit[dec] != 0 and \
+                hit[dec] == newdos_hashcode(e[5:13], e[13:16])
+            if in_hit:
+                confirmed += 1
+                live_gran |= granules(extents_of(e))
+            elif e[5:13] == name8 and e[13:16] == ext3:
+                target = (sid, row, bytearray(e), dec)
+    if confirmed < 2:
+        raise RuntimeError(f"HIT mapping could not be confirmed "
+                           f"({confirmed} live entries matched their "
+                           f"computed HIT slot); refusing to modify the "
+                           f"directory")
+    if target is None:
+        raise RuntimeError(f"{name}/{ext}: no dead directory entry found "
+                           f"(already live, or never on this disk)")
+    sid, row, e, dec = target
+    exts = extents_of(e)
+    if not exts:
+        raise RuntimeError(f"{name}/{ext}: dead entry has no extents left - "
+                           f"nothing to resurrect")
+    mine = granules(exts)
+    clash = sorted(mine & live_gran)
+    if clash and not force:
+        raise RuntimeError(f"{name}/{ext}: granules {clash} were reallocated "
+                           f"to live files; data partially overwritten. "
+                           f"Use force to resurrect anyway (file WILL be "
+                           f"corrupt).")
+
+    import shutil
+    shutil.copy(image_path, out_path)
+    w = DMKWriteImage(out_path)
+    e[0] |= 0x10                       # active bit
+    d = bytearray(w.read_sector(dt, ds, sid))
+    d[row * 32:(row + 1) * 32] = e
+    w.write_sector(dt, ds, sid, bytes(d))
+    hit[dec] = newdos_hashcode(bytes(e[5:13]), bytes(e[13:16]))
+    w.write_sector(dt, ds, hit_id, bytes(hit))
+    for g in mine:                     # re-mark granules used in GAT
+        gat[g // gpl] |= (1 << (g % gpl))
+    w.write_sector(dt, ds, gat_id, bytes(gat))
+    w.save(out_path)
+    return dict(filename=f"{name.upper()}/{ext.upper()}", dec=dec,
+                granules=sorted(mine), overlap=clash, out=out_path)
+
+
 class Newdos80Writer:
     """Append a file into free space of a NEWDOS/80 DSDD DMK image."""
     def __init__(self, path):
@@ -1370,10 +1520,35 @@ def main():
                          "(for --write-basic the default extension is /BAS; "
                          "for --write-file the source name and extension are "
                          "used unless overridden)")
+    ap.add_argument("--undelete", metavar="NAME/EXT",
+                    help="resurrect a KILLed file in a COPY of the image: "
+                         "restores the entry's active bit, HIT hash, and GAT "
+                         "allocation. Geometry-aware (SS-SD and DS-DD). "
+                         "Refuses if the data granules were reallocated to "
+                         "live files, unless --force is given.")
+    ap.add_argument("--force", action="store_true",
+                    help="with --undelete: resurrect even when granules "
+                         "overlap live files (result will be corrupt)")
     ap.add_argument("--self-test", action="store_true",
                     help="run the built-in extraction regression "
                          "(meaningful only on the esnd-23 reference disk)")
     args = ap.parse_args()
+
+    if args.undelete:
+        nm = args.undelete.replace("\\", "/")
+        name, _, ext = nm.partition("/")
+        out_path = args.output or (os.path.splitext(args.image)[0] + ".out.dsk")
+        try:
+            info = undelete_file(args.image, name, ext, out_path,
+                                 force=args.force, verbose=args.verbose)
+        except Exception as e:
+            print(f"ERROR undeleting: {e}", file=sys.stderr)
+            sys.exit(2)
+        warn = (f"  WARNING: granules {info['overlap']} overlapped live "
+                f"files - data corrupt!" if info['overlap'] else "")
+        print(f"Undeleted {info['filename']} (DEC {info['dec']}, granules "
+              f"{info['granules']}) -> {info['out']}{warn}")
+        sys.exit(0)
 
     if args.write_basic:
         # Write a tokenized BASIC file into a COPY of the image. Never touches

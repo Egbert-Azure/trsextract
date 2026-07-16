@@ -12,7 +12,7 @@ Built for the preservation of an original TRS-80 Model I disk collection, and
 validated against authoritative TRSTools extractions and against real
 NEWDOS/80 in the sdltrs emulator across multiple disk geometries.
 
-- **Version:** 1.7
+- **Version:** 1.8
 - **License:** GNU General Public License v3 (GPLv3)
 - **Requirements:** Python 3 (standard library only — runs on stock macOS,
   Linux, or anywhere Python 3 is available)
@@ -51,7 +51,10 @@ into a **copy**.
 ## What it does
 
 - **Lists** the directory of a NEWDOS/80 or G-DOS disk image: filenames,
-  attributes, logical record length, EOF offset, and extent allocation.
+  attributes, logical record length, EOF offset, and extent allocation. Since
+  1.8, follows a directory that overflows onto a second track (a full
+  primary track's worth of entries continuing onto the next track/side),
+  so files that only live in that overflow are no longer silently dropped.
 - **Extracts** every file to a folder, byte-exact, following the on-disk
   granule allocation (including multi-extent and FXDE-continuation files).
 - **Auto-detects the image format** — DMK by header verification; the
@@ -127,7 +130,7 @@ Extracting 22 files to esnd-23_extract/ (sides=2 spt=18 GPL=6 offset=36) ...
 | `--undelete NAME/EXT` | Resurrect a KILLed file in a **copy** of the image: restores the entry's active bit, HIT hash, and GAT allocation. Refuses if the file's granules were reallocated to live files. |
 | `--force` | With `--undelete`: resurrect despite granule overlap (the result **will** be corrupt; for forensic salvage only). |
 | `-v`, `--verbose` | Show the DMK header, per-track directory-scan scores, and the per-format detection scores. |
-| `--version` | Print `trsextract 1.7`. |
+| `--version` | Print `trsextract 1.8`. |
 | `--extract-at START,NSEC,EOF` | Low-level: extract from a known absolute start sector, sector count, and EOF-in-last-sector. For diagnostics. |
 | `--self-test` | Run the built-in extraction regression (meaningful only on the `esnd-23` reference disk). |
 
@@ -187,9 +190,16 @@ and TXT.
   HIT structurally (the two sectors before the first entry sector) and
   refuse to write unless the DEC→HIT mapping is confirmed against the disk's
   own live entries. Standard layouts (GAT/HIT at 0/1 or 6/7) and the
-  entries-in-sectors-10-17 builds (GAT/HIT at 8/9; esnd-05, confirmed 64/64)
-  all pass; a directory whose GAT/HIT sit elsewhere would be refused — safe,
-  but not writable.
+  entries-in-sectors-10-17 builds (GAT/HIT at 8/9; esnd-05, confirmed 64/64
+  on its primary track) all pass; a directory whose GAT/HIT sit elsewhere
+  would be refused — safe, but not writable.
+- **Directory continuation is read-only (1.8).** When a directory's live
+  file count exceeds what the primary track holds, the extra entries
+  continue onto the next track/side (see *How extraction works*). Listing
+  and extraction follow this continuation since 1.8; `--undelete` and the
+  writer do not yet, so a dead entry that lives on a continuation track
+  cannot currently be resurrected, and a disk whose primary track is full
+  cannot currently be written to even if its continuation has free slots.
 - **DSDD write re-validation pending.** The 1.7 writer rework is validated
   end-to-end on SS-SD (esnd-40); the DSDD sector math is unchanged code but
   a positive DSDD write has not been re-run since the rework — repeat the
@@ -268,6 +278,20 @@ mapped to physical `(track, side, sector)` according to the disk's sides and
 sectors-per-track. Files longer than four extents continue via an FXDE
 (extended directory entry) linked from the primary entry. File length comes
 from the entry's EOF sector count and EOF byte.
+
+**Directory continuation (1.8).** A directory slot is addressed by
+`dec = (row << 5) + sector_index`, a 5-bit `sector_index` — room for up to 32
+entry sectors, more than the handful that fit on one track. When a disk's
+live file count needs more than the primary track holds, the extra entries
+continue on the very next track/side in physical order (side 0 then side 1
+of a cylinder, then the next cylinder), with no GAT/HIT of their own — the
+single HIT sector on the primary track addresses all of them by
+`sector_index`. trsextract detects this from unexplained nonzero HIT bytes on
+the primary track and follows it, but only trusts a continuation-track entry
+whose computed DEC hashes to the expected HIT byte — unlike the primary
+track, structure alone isn't enough signal there. Found on 26 of 76 disks in
+a sweep of the reference collection, including the `esnd-23` self-test disk
+itself (22 → 28 entries).
 
 The implementation was cross-checked against the published NEWDOS/80 and TRSDOS
 directory format and Klaus Kämpf's `newdos.rb`.

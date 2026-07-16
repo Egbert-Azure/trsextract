@@ -6,6 +6,31 @@ disk-by-disk validation history also lives in the header of `trsextract.py`.
 
 ## trsextract.py
 
+### 1.8
+- Directory continuation: `decode_directory` now follows a directory whose
+  live file count exceeds what the primary track holds onto the next
+  track/side, instead of silently dropping the overflow. NEWDOS/80
+  addresses a directory slot as `dec = (row<<5)+sector_index`, a 5-bit
+  field — room for up to 32 entry sectors, more than fit on one track; the
+  overflow continues on the very next (track, side) in physical order, with
+  no GAT/HIT of its own. Detected from unexplained nonzero bytes in the
+  primary track's own HIT table; a continuation-track entry is only
+  accepted when its computed DEC hashes to the expected HIT byte, so
+  unrelated data on an unconnected track can't be mistaken for directory
+  entries.
+- Found investigating a user report that `WP/CMD` — a file they could see
+  and run on the real disk — was missing from `esnd-05`'s listing. Its
+  entry, and 10 siblings, sit on track 6 side 0, continuing directly from
+  track 5 side 1's 64 full entries; all 11 HIT-hash at exactly the
+  `sector_index` the DEC scheme predicts.
+- Swept the full 76-image collection: 26 disks gained entries this way (2
+  to 27 files each), including the `esnd-23` self-test reference disk
+  itself (22 → 28). `self-test` (an unrelated fixed-sector extraction of
+  `WBEDIT/SAV`) still passes; entry counts only ever grew, never shrank,
+  across the sweep.
+- Known gap: the write path (`Newdos80Writer`, `--undelete`) does not yet
+  follow continuation — it still only sees the primary track.
+
 ### 1.6
 - New `--undelete NAME/EXT`: restores a KILLed file in a copy of the image.
   KILL clears three things — the entry's active bit (0x10), its HIT hash, and

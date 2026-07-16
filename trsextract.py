@@ -49,6 +49,39 @@ authoritative source before trusting it on new disks.
 -----------------------------------------------------------------------------
 VERSION HISTORY
 -----------------------------------------------------------------------------
+1.8  (2026-07-16)  Directory continuation: read past a full primary
+       directory track onto the next one.
+       - NEWDOS/80 addresses a directory slot as dec = (row<<5)+sector_index,
+         a 5-bit sector_index -- room for up to 32 entry sectors, more than
+         the handful that fit on one track. When a disk's live file count
+         needs more than the primary track holds, the extra entries continue
+         on the very next (track, side) in physical order (side 0 then side
+         1 of a cylinder, then the next cylinder), with no GAT/HIT of their
+         own -- the primary track's single HIT sector addresses all of them
+         by sector_index. decode_directory now detects this from unexplained
+         nonzero HIT bytes on the primary track and follows it
+         (_decode_directory_continuation), accepting a continuation-track
+         entry only when its computed DEC hashes to the expected HIT byte --
+         unlike the primary track, structure alone is not enough signal, so
+         unrelated data on an unconnected track cannot be mistaken for
+         directory entries.
+       - Found investigating a user report: WP/CMD (a live, runnable file on
+         esnd-05) was missing from the listing. Its entry, and 10 siblings,
+         sit on track 6 side 0, continuing directly from track 5 side 1's 64
+         full entries (GAT 8 / HIT 9 / entries 10-17); all 11 HIT-hash at
+         exactly the sector_index the DEC scheme predicts.
+       - Swept the full 76-image collection: 26 disks gained entries this
+         way (2 to 27 files each), including the esnd-23 reference disk
+         itself (22 -> 28). self-test (WBEDIT/SAV, an unrelated fixed-sector
+         extraction) still PASSES; entry counts only ever grew, never shrank,
+         across the sweep. GAMES.DSK (HD volume) unaffected, still refused
+         as before.
+       - Write path (Newdos80Writer, --undelete) is NOT extended by this --
+         they still only see the primary track. A file resurrected or
+         written onto a disk with a continuation is unaffected either way,
+         but --undelete cannot yet resurrect a dead entry that lives on a
+         continuation track.
+
 1.7  (2026-07-05)  Geometry-aware writer; write path no longer DSDD-only.
        - Newdos80Writer now locates directory track/side, GAT, HIT and entry
          sectors structurally (shared _locate_dir_structures with --undelete)
@@ -399,7 +432,7 @@ KNOWN ISSUES / TODO
 -----------------------------------------------------------------------------
 """
 
-__version__ = "1.7"
+__version__ = "1.8"
 
 import argparse
 import os
@@ -801,7 +834,117 @@ class DirEntry:
         return f"{n}/{e}" if e else n
 
 
-def decode_directory(img, track, side=0):
+def _make_dir_entry(ent):
+    # NEWDOS/80 dir entry layout (FPDE, approx):
+    #   byte0  attributes
+    #   byte2  EOF byte offset in last sector
+    #   byte3  logical record length
+    #   bytes5-12  filename (8)
+    #   bytes13-15 extension (3)
+    #   bytes22+   extent fields (granule allocation pairs)
+    name = ent[5:13]
+    ext = ent[13:16]
+    eof_off = ent[2]
+    lrl = ent[3]
+    extents = _parse_extents(ent)
+    return DirEntry(name, ext, attr=ent[0], eof_offset=eof_off,
+                    lrl=lrl, extents=extents, raw=ent)
+
+
+def _next_track_side(img, track, side):
+    """Physical (track, side) that immediately follows in standard TRS-80
+    controller order: side 0 then side 1 of a cylinder before stepping to
+    the next cylinder. Matches DMK's own track/side layout formula and the
+    order NEWDOS/80 continues a directory in (see
+    _decode_directory_continuation)."""
+    if side + 1 < img.sides:
+        return track, side + 1
+    return track + 1, 0
+
+
+def _decode_directory_continuation(img, track, side, verbose=False):
+    """Find and decode directory entries that overflow onto a continuation
+    track, beyond the primary directory track (track, side).
+
+    NEWDOS/80 addresses a directory slot as dec = (row << 5) + sector_index,
+    a 5-bit sector_index field -- room for up to 32 entry sectors, more than
+    the handful that fit on one track (esnd-05: 8, sectors 10-17). When a
+    disk's live file count needs more than the primary track holds, the
+    extra entry sectors continue on the next (track, side) in physical
+    order (_next_track_side), with no extra GAT/HIT of their own -- the
+    single HIT sector on the primary track addresses all of them by
+    sector_index. Confirmed on esnd-05: 11 files (WP/CMD and 10 others) sit
+    on track 6 side 0, continuing directly from track 5 side 1's 64 (GAT 8 /
+    HIT 9 / entries 10-17); every one of the 11 HIT-hashes at exactly the
+    sector_index the DEC scheme predicts.
+
+    Detected from the primary track's own HIT bytes: any nonzero HIT byte at
+    a sector_index beyond what the primary track provides means a live
+    file's entry lives on a continuation track. Unlike the primary track's
+    scan (structure alone), a continuation track has no independent
+    structural signal, so its entries are trusted only when their computed
+    DEC hashes to the expected HIT byte -- otherwise unrelated data on an
+    unconnected track could be mistaken for directory entries.
+    """
+    secs = img.track_sectors(track, side)
+    ids = sorted(secs)
+
+    def is_entry_sector(d):
+        return any(_valid_entry(d[o:o + 32]) or d[o] == 0x94
+                   for o in range(0, 256, 32))
+    detected = [s for s in ids if is_entry_sector(secs[s])]
+    if not detected:
+        return []
+    first_ent = detected[0]
+    idx = ids.index(first_ent)
+    if idx < 2:
+        return []  # no room for GAT+HIT ahead of the entries
+    hit_id = ids[idx - 1]
+    si_count = len([s for s in ids if s >= first_ent])
+    if si_count >= 32:
+        return []  # already at the DEC field's maximum
+    hit = secs[hit_id]
+
+    needs_more = any(hit[si + 32 * row] != 0
+                     for si in range(si_count, 32) for row in range(8))
+    if not needs_more:
+        return []
+
+    entries = []
+    cur_track, cur_side = track, side
+    while si_count < 32:
+        cur_track, cur_side = _next_track_side(img, cur_track, cur_side)
+        if cur_track >= img.ntracks:
+            break
+        csecs = img.track_sectors(cur_track, cur_side)
+        cids = sorted(csecs)
+        if not cids:
+            break
+        found_here = 0
+        for local_si, sec_id in enumerate(cids):
+            si = si_count + local_si
+            if si >= 32:
+                break
+            d = csecs[sec_id]
+            for row in range(8):
+                ent = d[row * 32:(row + 1) * 32]
+                if not _valid_entry(ent):
+                    continue
+                dec = si + 32 * row
+                if dec >= len(hit) or hit[dec] == 0:
+                    continue
+                if hit[dec] != newdos_hashcode(ent[5:13], ent[13:16]):
+                    continue
+                entries.append(_make_dir_entry(ent))
+                found_here += 1
+        if verbose:
+            print(f"[dir] continuation: track {cur_track} side {cur_side} "
+                  f"-> {found_here} confirmed entries", file=sys.stderr)
+        si_count += len(cids)
+    return entries
+
+
+def decode_directory(img, track, side=0, verbose=False):
     # NEWDOS/80 & G-DOS directory entries are 32-byte FPDE/FXDE records that
     # NEVER span a sector boundary: each 256-byte directory sector holds
     # exactly 8 slots at fixed offsets 0,32,...,224. The first sectors of the
@@ -824,20 +967,11 @@ def decode_directory(img, track, side=0):
             ent = sector[slot:slot + ENTRY_SIZE]
             if len(ent) < ENTRY_SIZE or not _valid_entry(ent):
                 continue
-            name = ent[5:13]
-            ext = ent[13:16]
-            # NEWDOS/80 dir entry layout (FPDE, approx):
-            #   byte0  attributes
-            #   byte2  EOF byte offset in last sector
-            #   byte3  logical record length
-            #   bytes5-12  filename (8)
-            #   bytes13-15 extension (3)
-            #   bytes22+   extent fields (granule allocation pairs)
-            eof_off = ent[2]
-            lrl = ent[3]
-            extents = _parse_extents(ent)
-            entries.append(DirEntry(name, ext, attr=ent[0], eof_offset=eof_off,
-                                    lrl=lrl, extents=extents, raw=ent))
+            entries.append(_make_dir_entry(ent))
+
+    # A directory whose live-file count exceeds what the primary track holds
+    # continues onto the next track/side (see _decode_directory_continuation).
+    entries.extend(_decode_directory_continuation(img, track, side, verbose))
     return entries
 
 
@@ -1784,7 +1918,7 @@ def main():
               "Run with -v to inspect per-track scores.", file=sys.stderr)
         sys.exit(3)
 
-    entries = decode_directory(img, dirtrack, dirside)
+    entries = decode_directory(img, dirtrack, dirside, args.verbose)
     list_directory(img, entries, dirtrack, dirside)
 
     if args.output:

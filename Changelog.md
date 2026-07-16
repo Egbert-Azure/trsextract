@@ -192,10 +192,18 @@ disk-by-disk validation history also lives in the header of `trsextract.py`.
   with folder picker and log viewer. Read and extract only. Shells out to
   `python3 trsextract.py`.
 
-## Catalog tools (generate-logs.sh, catalog-logs.py)
+## Catalog tools (generate-logs.sh, catalog-logs.py, refresh-catalog.sh)
 
 Batch companions to `trsextract.py` for cataloguing a whole disk-image
 collection in one pass. Read-only over the images (listing only, no `-o`).
+
+### 1.0 (refresh-catalog.sh)
+- New wrapper script: `./refresh-catalog.sh` with no arguments refreshes
+  `Disk_Catalog.md` and `catalog.json` straight into the TRS80M1 checkout's
+  `diskimages/`, fixing `generate-logs.sh`'s three positional arguments
+  (image collection, log dir, output dir) to this machine's sibling
+  checkouts. Removes the last manual step (copying the rendered catalog into
+  TRS80M1 by hand) from the routine refresh.
 
 ### 1.2 (catalog-logs.py) / 1.1 (generate-logs.sh)
 - Privacy: the per-disk logs and `Disk_Catalog.md` recorded each image's full

@@ -5,8 +5,6 @@ All notable changes to **trsextract** (the Python tool) and **TRS80Extract**
 disk-by-disk validation history also lives in the header of `trsextract.py`.
 
 ## trsextract.py
-1.6
-
 
 ### 1.6
 - New `--undelete NAME/EXT`: restores a KILLed file in a copy of the image.

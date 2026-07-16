@@ -40,6 +40,14 @@
 # -----------------------------------------------------------------------------
 # VERSION HISTORY
 # -----------------------------------------------------------------------------
+# 1.3  (2026-07-16)  FIX: stale logs for removed images never left the
+#        catalog. LOG_DIR only ever gained new .log files; a .dmk/.dsk
+#        deleted from IMAGE_DIR left its old log sitting there, and
+#        catalog-logs.py -- which just reads every .log file it finds --
+#        kept listing the disk as if it still existed (e.g. Utility9, long
+#        removed from the collection, still showing in Disk_Catalog.md).
+#        LOG_DIR is now cleared at the start of every sweep before the new
+#        logs are written, since they are pure derived output.
 # 1.2  (2026-07-02)  One-command refresh. New optional OUT_DIR argument; after
 #        the log sweep the script now runs catalog-logs.py (located next to
 #        this script, like trsextract.py) twice to render Disk_Catalog.md and
@@ -83,6 +91,13 @@ PY="$(command -v python3 || true)"
 [ -z "$PY" ] && { echo "ERROR: python3 not found in PATH." >&2; exit 1; }
 
 mkdir -p "$LOG_DIR"
+
+# Logs are pure derived output (regenerated from the images every run), so
+# clear stale ones first. Without this, a .dmk/.dsk removed from IMAGE_DIR
+# leaves its old .log behind forever -- catalog-logs.py has no way to know
+# the image is gone, so the disk keeps appearing in the catalog after it no
+# longer exists.
+rm -f "$LOG_DIR"/*.log
 
 # collect images (case-insensitive, null-delimited for spaces in paths)
 count=0; ok=0; fail=0
